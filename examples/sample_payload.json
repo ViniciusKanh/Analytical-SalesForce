@@ -1,0 +1,143 @@
+{
+  "_demo": true,
+  "_aviso": "DADOS DE DEMONSTRAÇÃO. Não são reais. Servem apenas para validar o template e a interface localmente.",
+  "agent_name": "Analytical-Force",
+  "report_date": "2026-06-22",
+  "timezone": "America/Sao_Paulo",
+  "period": {
+    "current": "reference_day",
+    "comparison": "previous_day",
+    "seven_day_average": true
+  },
+  "metrics": {
+    "leads": {
+      "new_leads": 42,
+      "converted_leads": 8,
+      "conversion_rate": 19.05,
+      "leads_without_first_task": 6,
+      "avg_time_to_first_task_hours": 9.4,
+      "median_time_to_first_task_hours": 7.1,
+      "top_lead_source_by_volume": "Google Ads",
+      "best_lead_source_by_conversion": "Indicação",
+      "worst_lead_source_by_conversion": "Lista fria",
+      "comparisons": {
+        "new_leads": {
+          "variation_percent_vs_previous": 12.0,
+          "variation_percent_vs_7day_avg": 5.0
+        },
+        "conversion_rate": {
+          "variation_percent_vs_previous": -23.4,
+          "variation_percent_vs_7day_avg": -8.0
+        }
+      }
+    },
+    "opportunities": {
+      "new_opportunities": 5,
+      "open_opportunities": 120,
+      "won_opportunities": 3,
+      "lost_opportunities": 2,
+      "open_pipeline_amount": 1850000.0,
+      "won_amount": 90000.0,
+      "lost_amount": 40000.0,
+      "win_rate": 60.0,
+      "loss_rate": 40.0,
+      "stalled_opportunities": 14,
+      "opportunities_without_next_task": 9,
+      "opportunities_closing_this_month": 11,
+      "high_value_stalled_opportunities": 3,
+      "comparisons": {
+        "open_pipeline_amount": {
+          "variation_percent_vs_previous": -16.2,
+          "variation_percent_vs_7day_avg": -4.5
+        }
+      }
+    },
+    "tasks": {
+      "tasks_created": 60,
+      "tasks_completed": 38,
+      "completion_rate": 63.33,
+      "tasks_overdue": 22,
+      "tasks_future": 80,
+      "overdue_tasks_linked_to_leads": 7,
+      "overdue_tasks_linked_to_opportunities": 9,
+      "avg_overdue_delay_days": 4.2,
+      "top_overdue_owner": "Equipe SDR",
+      "top_overdue_owner_count": 8,
+      "comparisons": {
+        "tasks_overdue": {
+          "variation_percent_vs_previous": 18.5,
+          "variation_percent_vs_7day_avg": 10.0
+        }
+      }
+    },
+    "satisfaction": {
+      "configured": true,
+      "salesforce_object": "Pesquisa__c",
+      "message": null,
+      "responses": 30,
+      "avg_score": 6.4,
+      "negative_count": 7,
+      "top_negative_reasons": {
+        "Tempo de resposta": 4,
+        "Preço": 2
+      },
+      "critical_comments": [
+        "Demorou muito para retornar meu chamado."
+      ],
+      "comparisons": {
+        "avg_score": {
+          "variation_percent_vs_previous": -3.0,
+          "variation_percent_vs_7day_avg": -6.0
+        }
+      }
+    },
+    "cancellations": {
+      "configured": false,
+      "message": "Fonte de cancelamento ainda não configurada. Configure o objeto e os campos em object_mapping."
+    }
+  },
+  "alerts": [
+    {
+      "severity": "high",
+      "category": "Oportunidades",
+      "title": "3 oportunidade(s) de alto valor parada(s)",
+      "description": "3 oportunidade(s) acima de R$ 50.000 sem atividade recente.",
+      "recommended_action": "Priorizar contato imediato e definir próximo passo nessas oportunidades.",
+      "source_object": "Opportunity",
+      "source_record_id": "0065i00000ABCDEAA1"
+    },
+    {
+      "severity": "high",
+      "category": "Tarefas",
+      "title": "9 tarefa(s) vencida(s) em oportunidades",
+      "description": "9 tarefa(s) vencida(s) estão associadas a oportunidades abertas.",
+      "recommended_action": "Concluir ou reagendar essas tarefas para não travar o pipeline.",
+      "source_object": "Task",
+      "source_record_id": null
+    },
+    {
+      "severity": "medium",
+      "category": "Leads",
+      "title": "Queda na taxa de conversão",
+      "description": "Conversão caiu 23.4% em relação ao dia anterior (limite de alerta: 20%).",
+      "recommended_action": "Investigar qualidade dos leads e abordagem comercial recente.",
+      "source_object": "Lead",
+      "source_record_id": null
+    },
+    {
+      "severity": "medium",
+      "category": "Oportunidades",
+      "title": "Queda no pipeline aberto",
+      "description": "Pipeline aberto caiu 16.2% vs dia anterior (limite: 15%).",
+      "recommended_action": "Verificar perdas recentes e ritmo de geração de novas oportunidades.",
+      "source_object": "Opportunity",
+      "source_record_id": null
+    }
+  ],
+  "data_quality": {
+    "salesforce_connection": "ok",
+    "satisfaction_configured": true,
+    "cancellation_configured": false,
+    "missing_fields": []
+  }
+}

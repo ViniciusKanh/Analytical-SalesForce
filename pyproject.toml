@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "analytical-force"
+version = "0.1.0"
+description = "Agente de inteligência analítica para transformar dados do Salesforce em diagnóstico executivo diário, alertas de risco e ações recomendadas."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [{ name = "Penso Tecnologia da Informação" }]
+keywords = ["salesforce", "analytics", "turso", "bi", "ai-agent"]
+
+dependencies = [
+    "simple-salesforce>=1.12.5",
+    "pandas>=2.2.0",
+    "python-dotenv>=1.0.1",
+    "libsql>=0.1.0",
+    "requests>=2.31.0",
+    "pydantic>=2.6.0",
+    "python-dateutil>=2.9.0",
+    "markdown>=3.6",
+]
+
+[project.optional-dependencies]
+# Interface web local
+ui = ["gradio>=4.0.0"]
+# Modelo público via Hugging Face Transformers (provider transformers).
+# Ollama não exige dependência Python extra (usa HTTP via requests).
+transformers = ["transformers>=4.40.0", "torch>=2.2.0"]
+# Conjunto completo (sem nenhuma API comercial paga).
+all = ["gradio>=4.0.0", "transformers>=4.40.0", "torch>=2.2.0"]
+
+[project.scripts]
+analytical-force = "main:cli"
+
+[tool.setuptools]
+packages = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

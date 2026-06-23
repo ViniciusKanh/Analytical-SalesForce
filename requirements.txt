@@ -1,0 +1,32 @@
+# ============================================================
+# Analytical-Force — Dependências
+# ------------------------------------------------------------
+# O agente NÃO depende de APIs comerciais pagas de LLM.
+# Modelos suportados: template (sem IA), ollama (local), transformers.
+# Bibliotecas opcionais estão marcadas. Veja o README.
+# ============================================================
+
+# --- Núcleo (obrigatórias) ---
+simple-salesforce>=1.12.5
+pandas>=2.2.0
+python-dotenv>=1.0.1
+libsql>=0.1.0            # Cliente Turso/libSQL (banco principal)
+requests>=2.31.0
+pydantic>=2.6.0
+python-dateutil>=2.9.0
+
+# --- Relatório ---
+markdown>=3.6            # Conversão Markdown -> HTML (entrega/e-mail)
+
+# --- API HTTP (deploy online / front-end) ---
+fastapi>=0.110.0        # API REST (api.py)
+uvicorn[standard]>=0.29.0  # Servidor ASGI
+
+# --- Interface opcional (Fase 4) ---
+gradio>=4.0.0            # OPCIONAL: interface web local (app.py)
+
+# --- Modelo local/público opcional ---
+# Ollama usa HTTP local (requests) — sem dependência Python extra.
+# Hugging Face Transformers (MODEL_PROVIDER=transformers): instale sob demanda.
+transformers>=4.40.0     # OPCIONAL: provider transformers
+torch>=2.2.0             # OPCIONAL: backend para transformers (pode ser pesado)

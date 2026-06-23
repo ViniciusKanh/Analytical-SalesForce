@@ -1,0 +1,45 @@
+# ============================================================
+# Exemplo de execução diária via GitHub Actions.
+# Copie este arquivo para .github/workflows/daily.yml para ativar.
+#
+# As credenciais devem vir de GitHub Secrets — NUNCA versione segredos.
+# ============================================================
+name: analytical-force-daily
+
+on:
+  schedule:
+    # 08:00 America/Sao_Paulo == 11:00 UTC.
+    - cron: "0 11 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Executar Analytical-Force (modo template)
+        env:
+          SALESFORCE_USERNAME: ${{ secrets.SALESFORCE_USERNAME }}
+          SALESFORCE_PASSWORD: ${{ secrets.SALESFORCE_PASSWORD }}
+          SALESFORCE_SECURITY_TOKEN: ${{ secrets.SALESFORCE_SECURITY_TOKEN }}
+          SALESFORCE_DOMAIN: ${{ secrets.SALESFORCE_DOMAIN }}
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          # Em CI, normalmente não há Ollama disponível: use template.
+          MODEL_PROVIDER: template
+          REPORT_TIMEZONE: America/Sao_Paulo
+        run: python main.py
+
+      - name: Publicar relatório como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-diario
+          path: reports/daily/*.md

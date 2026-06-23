@@ -1,0 +1,31 @@
+# Nunca enviar segredos nem lixo para a imagem/Space.
+.env
+*.env
+!.env.example
+
+.git
+.gitignore
+.venv
+venv
+env
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# Artefatos transitórios (persistência real é no Turso).
+logs/*.log
+reports/daily/*.md
+data/exports/*
+
+# IDE / SO
+.idea
+.vscode
+.DS_Store
+Thumbs.db
+
+# Não precisamos das libs pesadas no Space (build usa requirements-hf.txt).
+# (requirements.txt completo permanece no repo para uso local.)

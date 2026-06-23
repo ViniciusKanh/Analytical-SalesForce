@@ -1,0 +1,43 @@
+# ===== Segredos e ambiente =====
+.env
+*.env
+!.env.example
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# ===== Banco local / dados =====
+*.db
+*.sqlite
+*.sqlite3
+data/exports/*
+!data/exports/.gitkeep
+
+# ===== Logs =====
+logs/*.log
+!logs/.gitkeep
+
+# ===== Relatórios gerados =====
+reports/daily/*.md
+!reports/daily/.gitkeep
+
+# ===== IDE / SO =====
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# ===== Testes / cache =====
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
