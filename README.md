@@ -202,7 +202,7 @@ Copie `.env.example` para `.env` e preencha. **Nunca** faça commit do `.env`.
 
 ## 🧩 Guia de replicação
 
-### 1. ![Salesforce](https://cdn.simpleicons.org/salesforce/00A1E0) Salesforce (OAuth Refresh Token)
+### 1. <img src="https://upload.wikimedia.org/wikipedia/commons/f/f9/Salesforce.com_logo.svg" height="18" alt="Salesforce"/> Salesforce (OAuth Refresh Token)
 
 1. **Setup → App Manager → New Connected App.**
 2. Ative **Enable OAuth Settings**. Callback URL: `https://login.salesforce.com/services/oauth2/callback`.
