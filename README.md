@@ -9,18 +9,15 @@ pinned: false
 short_description: Agente analítico diário Salesforce + Turso (API somente leitura)
 ---
 
-<!--
-O bloco acima (entre ---) é o metadata exigido pelo Hugging Face Spaces.
-Não remova ao publicar no HF. Em deploy Docker, a API escuta na porta 7860.
--->
+<!-- O bloco acima é o metadata do Hugging Face Spaces. Não remova ao publicar no HF. -->
 
 <div align="center">
 
-# 📊 Analytical-Force
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:2563eb,100:4f46e5&height=210&section=header&text=Analytical-Force&fontSize=54&fontColor=ffffff&fontAlignY=36&desc=Salesforce%20%E2%86%92%20IA%20%E2%86%92%20Diagn%C3%B3stico%20executivo%20di%C3%A1rio&descSize=18&descAlignY=56" width="100%" alt="Analytical-Force"/>
 
-### Agente de inteligência analítica que transforma dados do Salesforce em diagnóstico executivo diário, alertas de risco e ações recomendadas.
+<img src="https://readme-typing-svg.demolab.com?font=Segoe+UI&weight=600&size=22&duration=3200&pause=700&color=2563EB&center=true&vCenter=true&width=720&lines=Python+calcula.;IA+interpreta.;Turso+armazena.;Salesforce+fornece+os+dados." alt="typing" />
 
-<br/>
+<br/><br/>
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
@@ -31,56 +28,69 @@ Não remova ao publicar no HF. Em deploy Docker, a API escuta na porta 7860.
 ![Gmail API](https://img.shields.io/badge/Gmail%20API-EA4335?style=for-the-badge&logo=gmail&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 
+<!-- Badges dinâmicos: ajuste o caminho do repositório se o seu for diferente. -->
+![Último commit](https://img.shields.io/github/last-commit/ViniciusKhan/Analytical-Force?style=flat-square&color=2563eb)
+![Linguagem](https://img.shields.io/github/languages/top/ViniciusKhan/Analytical-Force?style=flat-square)
+![Tamanho](https://img.shields.io/github/repo-size/ViniciusKhan/Analytical-Force?style=flat-square)
+![Status](https://img.shields.io/badge/status-em%20produção-16a34a?style=flat-square)
+
 </div>
 
 ---
 
+<div align="center">
+
+### 🤖 Transforma dados do **Salesforce** em diagnóstico executivo diário, alertas de risco e ações recomendadas — com IA, banco Turso e entrega por e-mail e ClickUp.
+
+</div>
+
+> **Princípio central** &nbsp;·&nbsp; **Python calcula** · **IA interpreta** · **Turso armazena** · **Salesforce fornece os dados.**
+> A IA **nunca** calcula indicadores — recebe um JSON com métricas prontas e produz a narrativa. O Salesforce opera em **modo somente leitura**.
+
 ## 🧭 Índice
 
-- [Visão geral](#-visão-geral)
-- [Arquitetura](#-arquitetura)
-- [Fluxo diário](#-fluxo-diário)
-- [Stack](#-stack)
-- [Estrutura do projeto](#-estrutura-do-projeto)
-- [Configuração (.env)](#-configuração-env)
-- [Guia de replicação](#-guia-de-replicação)
-  - [1. Salesforce (OAuth)](#1--salesforce-oauth-refresh-token)
-  - [2. Turso](#2--turso--banco)
-  - [3. IA (Hugging Face Inference)](#3--ia--hugging-face-inference)
-  - [4. Gmail API (e-mail)](#4--gmail-api-e-mail)
-  - [5. ClickUp (tarefas)](#5--clickup-tarefas)
-- [Como rodar (local)](#-como-rodar-local)
-- [Deploy online (Hugging Face Spaces)](#-deploy-online-hugging-face-spaces)
-- [API](#-api)
-- [Front-end](#-front-end)
-- [Banco de dados](#-banco-de-dados)
-- [Segurança](#-segurança)
-- [Desenvolvedor](#-desenvolvedor)
+<table>
+<tr>
+<td>
+
+- [✨ Recursos](#-recursos)
+- [🏗️ Arquitetura](#️-arquitetura)
+- [🔄 Fluxo diário](#-fluxo-diário)
+- [🧰 Stack](#-stack)
+
+</td>
+<td>
+
+- [📁 Estrutura](#-estrutura-do-projeto)
+- [⚙️ Configuração](#️-configuração-env)
+- [🧩 Guia de replicação](#-guia-de-replicação)
+- [▶️ Rodar local](#️-como-rodar-local)
+
+</td>
+<td>
+
+- [🚀 Deploy (HF Spaces)](#-deploy-online-hugging-face-spaces)
+- [🌐 API](#-api)
+- [🖥️ Front-end](#️-front-end)
+- [👨‍💻 Desenvolvedor](#-desenvolvedor)
+
+</td>
+</tr>
+</table>
 
 ---
 
-## 🎯 Visão geral
+## ✨ Recursos
 
-O **Analytical-Force** roda diariamente e analisa **leads, oportunidades, tarefas,
-satisfação e cancelamentos**, comparando com o dia anterior e a média dos últimos
-7 dias. Ele gera **alertas de risco**, **prioridades do dia** e um **relatório
-executivo** — entregue por arquivo, e-mail e ClickUp.
-
-> ### Princípio central
-> **Python calcula. · IA interpreta. · Turso armazena. · Salesforce fornece os dados.**
->
-> A IA **nunca** calcula indicadores — recebe apenas um JSON com métricas já
-> prontas e produz a narrativa. O Salesforce opera em **modo somente leitura**.
-
-| Recurso | Descrição |
-| ------- | --------- |
-| 🔐 Autenticação | Salesforce via **OAuth Refresh Token** (somente leitura) |
-| 📈 Métricas | Leads, oportunidades, tarefas, satisfação, cancelamentos + variações |
-| 🚨 Motor de risco | Alertas `low` / `medium` / `high` com ação recomendada |
-| 🤖 IA | Narrativa executiva (Hugging Face Inference, Ollama local ou template) |
-| 🗄️ Persistência | Turso/libSQL (métricas, alertas, relatórios, snapshots) |
-| 📬 Entrega | Arquivo `.md`, e-mail (Gmail API) e tarefas no ClickUp |
-| 🌐 API + Front | FastAPI + painel HTML para acionar e visualizar |
+| | Recurso | Descrição |
+|---|---------|-----------|
+| 🔐 | **Autenticação** | Salesforce via OAuth Refresh Token (somente leitura) |
+| 📈 | **Métricas** | Leads, oportunidades, tarefas, satisfação, cancelamentos + variações (dia anterior / média 7 dias) |
+| 🚨 | **Motor de risco** | Alertas `low` / `medium` / `high` com ação recomendada |
+| 🤖 | **IA** | Narrativa executiva (Hugging Face Inference · Ollama · Template) |
+| 🗄️ | **Persistência** | Turso/libSQL — métricas, alertas, relatórios e snapshots |
+| 📬 | **Entrega** | Arquivo `.md`, e-mail (Gmail API) e tarefas no ClickUp com links |
+| 🌐 | **API + Front** | FastAPI + painel web multi-tela (lê o banco por GET) |
 
 ---
 
@@ -88,23 +98,20 @@ executivo** — entregue por arquivo, e-mail e ClickUp.
 
 ```mermaid
 flowchart LR
-    SF[("☁️ Salesforce<br/>(somente leitura)")] -->|OAuth + SOQL| EX[Extratores<br/>pandas]
-    EX --> MET[Motor de métricas<br/>Python]
+    SF[("☁️ Salesforce<br/>somente leitura")] -->|OAuth + SOQL| EX[Extratores<br/>pandas]
+    EX --> MET[Motor de métricas]
     MET --> RISK[Motor de risco]
     MET --> TURSO[("🗄️ Turso / libSQL")]
     RISK --> TURSO
-    MET --> PB[Prompt Builder]
-    PB --> IA{{"🤖 IA<br/>HF Inference / Ollama / Template"}}
+    MET --> PB[Prompt Builder] --> IA{{"🤖 IA"}}
     IA --> REP[Relatório Markdown]
     MET --> REP
     RISK --> REP
     REP --> ENT[Entrega]
-    ENT --> FILE[📄 Arquivo .md]
+    ENT --> FILE[📄 Arquivo]
     ENT --> MAIL[📧 Gmail API]
     ENT --> CU[✅ ClickUp]
-    API[["🌐 API FastAPI"]] --> AG[Agente]
-    AG --> EX
-    FRONT[["🖥️ Front-end"]] -->|/run| API
+    FRONT[["🖥️ Front-end"]] <-->|REST| API[["🌐 API FastAPI"]] --> AG[Agente] --> EX
 ```
 
 ---
@@ -114,7 +121,7 @@ flowchart LR
 ```mermaid
 sequenceDiagram
     participant F as Front / Agendador
-    participant API as API FastAPI
+    participant API as API
     participant AG as Agente
     participant SF as Salesforce
     participant T as Turso
@@ -123,30 +130,31 @@ sequenceDiagram
     API->>AG: executar(dia)
     AG->>SF: OAuth + SOQL (leads, opps, tasks, satisfação, cancelamentos)
     SF-->>AG: DataFrames
-    AG->>AG: calcula métricas + comparações + riscos
+    AG->>AG: métricas + comparações + riscos
     AG->>T: salva métricas, alertas, relatório, snapshots
     AG->>IA: prompt (JSON de métricas)
     IA-->>AG: narrativa executiva
     AG-->>API: relatório + alertas + destaques
-    API-->>F: JSON (relatório, KPIs, links)
-    API->>API: (opcional) e-mail + tarefas ClickUp
+    API-->>F: JSON (KPIs, links, relatório)
 ```
 
 ---
 
 ## 🧰 Stack
 
-| Camada | Tecnologia |
-| ------ | ---------- |
-| Linguagem | Python 3.11+ |
-| Salesforce | `simple-salesforce` + OAuth 2.0 |
-| Dados | `pandas` |
-| Banco | **Turso / libSQL** (`libsql`) |
-| IA | Hugging Face Inference · Ollama (local) · Transformers · Template |
-| API | **FastAPI** + Uvicorn |
-| Entrega | Gmail API · SMTP · ClickUp API |
-| Deploy | **Docker** / Hugging Face Spaces |
-| Front | HTML + Chart.js + marked (single-file) |
+<div align="center">
+
+<img height="44" src="https://cdn.simpleicons.org/python/3776AB" alt="Python" title="Python"/>&nbsp;&nbsp;&nbsp;
+<img height="44" src="https://cdn.simpleicons.org/fastapi/009688" alt="FastAPI" title="FastAPI"/>&nbsp;&nbsp;&nbsp;
+<img height="34" src="https://upload.wikimedia.org/wikipedia/commons/f/f9/Salesforce.com_logo.svg" alt="Salesforce" title="Salesforce"/>&nbsp;&nbsp;&nbsp;
+<img height="44" src="https://cdn.simpleicons.org/turso/4FF8D2" alt="Turso" title="Turso"/>&nbsp;&nbsp;&nbsp;
+<img height="44" src="https://cdn.simpleicons.org/huggingface/FFD21E" alt="Hugging Face" title="Hugging Face"/>&nbsp;&nbsp;&nbsp;
+<img height="44" src="https://cdn.simpleicons.org/pandas/150458" alt="pandas" title="pandas"/>&nbsp;&nbsp;&nbsp;
+<img height="44" src="https://cdn.simpleicons.org/clickup/7B68EE" alt="ClickUp" title="ClickUp"/>&nbsp;&nbsp;&nbsp;
+<img height="44" src="https://cdn.simpleicons.org/gmail/EA4335" alt="Gmail" title="Gmail"/>&nbsp;&nbsp;&nbsp;
+<img height="44" src="https://cdn.simpleicons.org/docker/2496ED" alt="Docker" title="Docker"/>
+
+</div>
 
 ---
 
@@ -156,106 +164,92 @@ sequenceDiagram
 analytical-force/
 ├── api.py                 # API FastAPI (deploy online)
 ├── main.py                # CLI
-├── frontend.html          # Painel web (single-file)
+├── frontend.html          # Painel web multi-tela (single-file)
 ├── Dockerfile             # Imagem para HF Spaces
-├── requirements.txt       # Deps (local)
-├── requirements-hf.txt    # Deps enxutas (Space)
+├── requirements.txt       # Deps (local)  ·  requirements-hf.txt (Space)
 ├── .env.example           # Modelo de variáveis (sem segredos)
-├── scripts/
-│   ├── test_salesforce_oauth.py   # valida OAuth Salesforce
-│   ├── test_gmail_oauth.py        # valida Gmail API
-│   └── clean_db.py                # limpeza do Turso
+├── scripts/               # test_salesforce_oauth · test_gmail_oauth · clean_db
 └── src/
-    ├── config/      # settings (variáveis de ambiente)
-    ├── database/    # turso_client, migrations, repositories
-    ├── salesforce/  # client (OAuth), queries, extractors, field_mapping
-    ├── analytics/   # métricas + motor de risco
-    ├── models/      # hf_inference, ollama, transformers, template, router
-    ├── agent/       # orquestrador, prompt_builder, report_generator
-    ├── delivery/    # file_writer, email_sender (Gmail/SMTP), clickup_sender
-    └── utils/       # logger, date_utils, validators
+    ├── config/   database/   salesforce/   analytics/
+    ├── models/   agent/      delivery/     utils/
 ```
 
 ---
 
 ## ⚙️ Configuração (.env)
 
-Copie `.env.example` para `.env` e preencha. **Nunca** faça commit do `.env`.
+Copie `.env.example` → `.env`. **Nunca** faça commit do `.env`.
 
 | Variável | Descrição |
 | -------- | --------- |
-| `SALESFORCE_AUTH_MODE` | `oauth_refresh_token` (padrão) ou `soap_legacy` |
-| `SALESFORCE_INSTANCE_URL` | URL da org (ex.: `https://suaorg.my.salesforce.com`) |
-| `SALESFORCE_CLIENT_ID` / `SALESFORCE_CLIENT_SECRET` | Connected App |
-| `SALESFORCE_REFRESH_TOKEN` | Refresh token OAuth |
-| `SALESFORCE_API_VERSION` | ex.: `64.0` |
-| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | Banco libSQL/Turso |
+| `SALESFORCE_AUTH_MODE` | `oauth_refresh_token` (padrão) |
+| `SALESFORCE_INSTANCE_URL` · `_CLIENT_ID` · `_CLIENT_SECRET` · `_REFRESH_TOKEN` | OAuth Salesforce |
+| `TURSO_DATABASE_URL` · `TURSO_AUTH_TOKEN` | Banco libSQL/Turso |
 | `MODEL_PROVIDER` | `hf_inference` · `ollama` · `transformers` · `template` |
-| `HF_INFERENCE_MODEL` / `HF_TOKEN` | IA hospedada (ex.: `Qwen/Qwen2.5-7B-Instruct`) |
-| `GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN/SENDER` | Envio por Gmail API |
-| `CLICKUP_API_TOKEN` / `CLICKUP_LIST_ID` / `CLICKUP_ASSIGNEE_ID` | Tarefas |
+| `HF_INFERENCE_MODEL` · `HF_TOKEN` | IA hospedada |
+| `GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN/SENDER` | E-mail (Gmail API) |
+| `CLICKUP_API_TOKEN` · `CLICKUP_LIST_ID` · `CLICKUP_ASSIGNEE_ID` | Tarefas |
 | `OPPORTUNITY_MIN_AMOUNT` | Valor mínimo de oportunidade a analisar |
 
-> A lista completa e comentada está em [`.env.example`](.env.example).
+> Lista completa e comentada em [`.env.example`](.env.example).
 
 ---
 
 ## 🧩 Guia de replicação
 
-### 1. <img src="https://upload.wikimedia.org/wikipedia/commons/f/f9/Salesforce.com_logo.svg" height="18" alt="Salesforce"/> Salesforce (OAuth Refresh Token)
+<details>
+<summary><b><img src="https://upload.wikimedia.org/wikipedia/commons/f/f9/Salesforce.com_logo.svg" height="14"/> &nbsp;1. Salesforce (OAuth Refresh Token)</b></summary>
 
 1. **Setup → App Manager → New Connected App.**
-2. Ative **Enable OAuth Settings**. Callback URL: `https://login.salesforce.com/services/oauth2/callback`.
-3. Scopes (OAuth): **`Manage user data via APIs (api)`** e **`Perform requests at any time (refresh_token, offline_access)`**.
-4. Salve e copie **Consumer Key** (`CLIENT_ID`) e **Consumer Secret** (`CLIENT_SECRET`).
-5. Gere o **Refresh Token** (fluxo OAuth web). Coloque tudo no `.env`.
-6. Valide:
+2. Ative **Enable OAuth Settings**. Callback: `https://login.salesforce.com/services/oauth2/callback`.
+3. Scopes: **`api`** e **`refresh_token, offline_access`**.
+4. Copie **Consumer Key** (`CLIENT_ID`) e **Consumer Secret** (`CLIENT_SECRET`).
+5. Gere o **Refresh Token** (fluxo OAuth) e preencha o `.env`.
+6. Valide: `python scripts/test_salesforce_oauth.py`
 
-   ```bash
-   python scripts/test_salesforce_oauth.py
-   ```
+> 💡 Use um **usuário de integração somente leitura**. O agente só faz `SELECT` (SOQL).
+</details>
 
-> 💡 Recomendado um **usuário de integração com perfil somente leitura**. O agente
-> só executa `SELECT` (SOQL); nenhuma operação de escrita é implementada.
-
-### 2. ![Turso](https://cdn.simpleicons.org/turso/4FF8D2) Turso — banco
+<details>
+<summary><b><img src="https://cdn.simpleicons.org/turso/4FF8D2" height="14"/> &nbsp;2. Turso (banco)</b></summary>
 
 ```bash
 turso db create analytical-force
-turso db show analytical-force --url       # -> TURSO_DATABASE_URL (libsql://...)
-turso db tokens create analytical-force    # -> TURSO_AUTH_TOKEN
+turso db show analytical-force --url      # -> TURSO_DATABASE_URL
+turso db tokens create analytical-force   # -> TURSO_AUTH_TOKEN
 ```
-
 As tabelas são criadas automaticamente (migrations idempotentes) na 1ª execução.
+</details>
 
-### 3. ![Hugging Face](https://cdn.simpleicons.org/huggingface/FFD21E) IA — Hugging Face Inference
+<details>
+<summary><b><img src="https://cdn.simpleicons.org/huggingface/FFD21E" height="14"/> &nbsp;3. IA — Hugging Face Inference</b></summary>
 
-1. Crie um token em **huggingface.co/settings/tokens** com permissão **Make calls to Inference Providers**.
+1. Token em **huggingface.co/settings/tokens** com permissão **Make calls to Inference Providers**.
 2. No `.env`: `MODEL_PROVIDER=hf_inference`, `HF_INFERENCE_MODEL=Qwen/Qwen2.5-7B-Instruct`, `HF_TOKEN=...`.
 
-> Alternativas: `ollama` (modelo local), `transformers` (modelo público em CPU) ou
-> `template` (sem IA — números idênticos, narrativa por regras, instantâneo).
+> Alternativas: `ollama` (local), `transformers` (CPU) ou `template` (sem IA, instantâneo).
+</details>
 
-### 4. ![Gmail](https://cdn.simpleicons.org/gmail/EA4335) Gmail API (e-mail)
+<details>
+<summary><b><img src="https://cdn.simpleicons.org/gmail/EA4335" height="14"/> &nbsp;4. Gmail API (e-mail)</b></summary>
 
 > O HF Spaces bloqueia SMTP — por isso o e-mail online usa a **Gmail API (HTTP)**.
 
 1. Google Cloud Console → ative a **Gmail API**.
-2. Tela de consentimento OAuth (**External**) → adicione seu e-mail em **Test users**.
-3. Crie credencial **OAuth Client (Web)** com redirect `https://developers.google.com/oauthplayground`.
-4. No **OAuth Playground**, autorize o escopo `https://www.googleapis.com/auth/gmail.send` e gere o **refresh token**.
-5. No `.env`: `GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN` + `GMAIL_SENDER` + `REPORT_RECIPIENT_EMAIL`.
-6. Valide:
+2. Tela de consentimento (**External**) → adicione seu e-mail em **Test users**.
+3. Credencial **OAuth Client (Web)** com redirect `https://developers.google.com/oauthplayground`.
+4. No **OAuth Playground**, autorize `https://www.googleapis.com/auth/gmail.send` e gere o **refresh token**.
+5. `.env`: `GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN` + `GMAIL_SENDER` + `REPORT_RECIPIENT_EMAIL`.
+6. Valide: `python scripts/test_gmail_oauth.py`
+</details>
 
-   ```bash
-   python scripts/test_gmail_oauth.py
-   ```
-
-### 5. ![ClickUp](https://cdn.simpleicons.org/clickup/7B68EE) ClickUp (tarefas)
+<details>
+<summary><b><img src="https://cdn.simpleicons.org/clickup/7B68EE" height="14"/> &nbsp;5. ClickUp (tarefas)</b></summary>
 
 1. ClickUp → **Settings → Apps → API Token** (`pk_...`).
-2. Pegue o **List ID** pela URL da lista: `app.clickup.com/.../li/<LIST_ID>`.
-3. No `.env`: `CLICKUP_API_TOKEN`, `CLICKUP_LIST_ID`, `CLICKUP_ASSIGNEE_ID` e `ENABLE_CLICKUP_AUTO_CREATE=true`.
+2. **List ID** pela URL: `app.clickup.com/.../li/<LIST_ID>`.
+3. `.env`: `CLICKUP_API_TOKEN`, `CLICKUP_LIST_ID`, `CLICKUP_ASSIGNEE_ID`, `ENABLE_CLICKUP_AUTO_CREATE=true`.
+</details>
 
 ---
 
@@ -266,26 +260,25 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 pip install -r requirements.txt
 cp .env.example .env                                 # preencha
 
-python main.py --check          # valida configuração
-python main.py --date 2026-06-22 # executa o pipeline real
-uvicorn api:app --port 7860      # sobe a API (http://localhost:7860/docs)
+python main.py --check            # valida configuração
+python main.py --date 2026-06-22  # executa o pipeline
+uvicorn api:app --port 7860       # API + Swagger em /docs
 ```
 
-Abra o **`frontend.html`** no navegador e aponte para a URL da API (na engrenagem ⚙️).
+Abra o **`frontend.html`** e aponte para a URL da API (aba **Configuração**).
 
 ---
 
 ## 🚀 Deploy online (Hugging Face Spaces)
 
-Space do tipo **Docker** (build leve, sem torch). Em **Settings → Variables and secrets**:
+Space tipo **Docker** (build leve). Em **Settings → Variables and secrets**:
 
-| Secrets | Variables |
-| ------- | --------- |
+| 🔒 Secrets | ⚙️ Variables |
+| --------- | ----------- |
 | `SALESFORCE_CLIENT_ID/SECRET/REFRESH_TOKEN` | `SALESFORCE_AUTH_MODE=oauth_refresh_token` |
-| `TURSO_AUTH_TOKEN` | `SALESFORCE_INSTANCE_URL`, `SALESFORCE_API_VERSION=64.0` |
-| `HF_TOKEN` | `TURSO_DATABASE_URL`, `MODEL_PROVIDER=hf_inference` |
-| `GMAIL_*`, `CLICKUP_API_TOKEN` | `HF_INFERENCE_MODEL`, `CLICKUP_LIST_ID`, etc. |
-| `APP_API_TOKEN` (protege o `/run`) | |
+| `TURSO_AUTH_TOKEN` · `HF_TOKEN` | `SALESFORCE_INSTANCE_URL` · `SALESFORCE_API_VERSION=64.0` |
+| `GMAIL_*` · `CLICKUP_API_TOKEN` | `TURSO_DATABASE_URL` · `MODEL_PROVIDER=hf_inference` |
+| `APP_API_TOKEN` (protege o `/run`) | `HF_INFERENCE_MODEL` · `CLICKUP_LIST_ID` … |
 
 ---
 
@@ -293,24 +286,26 @@ Space do tipo **Docker** (build leve, sem torch). Em **Settings → Variables an
 
 | Método | Rota | Descrição |
 | ------ | ---- | --------- |
-| GET | `/health` | Verificação de saúde |
-| GET | `/config/check` | Validação da configuração (sem segredos) |
-| POST | `/run` | Executa o pipeline (corpo JSON) |
-| GET | `/run?date=YYYY-MM-DD` | Executa pelo navegador |
-| GET | `/metrics/{data}` | Métricas salvas de um dia (rápido) |
-| GET | `/history?days=7` | Série histórica para gráficos |
-| GET | `/docs` | Swagger |
+| `GET` | `/health` | Saúde |
+| `GET` | `/config/check` | Validação (sem segredos) |
+| `POST` | `/run` | Executa o pipeline |
+| `GET` | `/run?date=` | Executa pelo navegador |
+| `GET` | `/days` | Datas com relatório salvo |
+| `GET` | `/day/{data}` | Todos os dados de um dia (do banco) |
+| `GET` | `/metrics/{data}` | Métricas de um dia |
+| `GET` | `/history?days=7` | Série histórica |
+| `GET` | `/docs` | Swagger |
 
-Autenticação por header `X-API-Key` quando `APP_API_TOKEN` está definido.
+Header `X-API-Key` quando `APP_API_TOKEN` está definido.
 
 ---
 
 ## 🖥️ Front-end
 
-`frontend.html` é um painel single-file (HTML + Chart.js + marked):
-tema claro/escuro, KPIs animados, filtro de alertas, gráfico de severidade,
-**Registros do dia** com links diretos ao Salesforce, **Tendências** (gráfico
-histórico do Turso), relatório em abas e histórico de execuções.
+`frontend.html` é um painel **multi-tela** (single-file): barra lateral, seletor de
+dia que lê o banco por `GET /day`, tema claro/escuro, KPIs animados, filtro de
+alertas, gráfico de severidade, **Registros do dia** com links ao Salesforce,
+**Tendências** (histórico do Turso) e relatório em abas.
 
 ---
 
@@ -318,17 +313,15 @@ histórico do Turso), relatório em abas e histórico de execuções.
 
 Tabelas (Turso/libSQL): `agent_runs`, `daily_metrics`, `daily_alerts`,
 `daily_reports`, `salesforce_snapshots`, `object_mapping`, `agent_config`.
-As gravações por dia são **idempotentes** (não acumulam ao reexecutar).
-Manutenção: `python scripts/clean_db.py --snapshots`.
+Gravações **idempotentes** por dia. Manutenção: `python scripts/clean_db.py --snapshots`.
 
 ---
 
 ## 🔒 Segurança
 
-- Sem segredos no código — apenas em `.env` (gitignored) ou Secrets do Space.
-- Salesforce **somente leitura** (apenas SOQL `SELECT`).
-- Logs mascaram senhas/tokens.
-- `/run` protegível por `APP_API_TOKEN`.
+- Sem segredos no código (apenas `.env` / Secrets do Space).
+- Salesforce **somente leitura** (apenas `SELECT`).
+- Logs mascaram senhas/tokens · `/run` protegível por `APP_API_TOKEN`.
 
 ---
 
@@ -336,17 +329,16 @@ Manutenção: `python scripts/clean_db.py --snapshots`.
 
 <div align="center">
 
-<img src="https://avatars.githubusercontent.com/u/66964047?s=400&u=ef769a81cacd810da6761e08129a1860dd11e36c&v=4" width="120" height="120" style="border-radius:50%" alt="Vinicius de Souza Santos"/>
+<img src="https://avatars.githubusercontent.com/u/66964047?s=400&u=ef769a81cacd810da6761e08129a1860dd11e36c&v=4" width="110" height="110" style="border-radius:50%" alt="Vinicius de Souza Santos"/>
 
 ### Vinicius de Souza Santos
 **Criador e desenvolvedor do Analytical-Force**
 
 [![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/ViniciusKhan)
+[![Hugging Face](https://img.shields.io/badge/🤗%20Space-FFD21E?style=for-the-badge)](https://huggingface.co/spaces/ViniciusKhan/analytical_force)
 
 </div>
 
----
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:4f46e5,100:2563eb&height=110&section=footer" width="100%" alt=""/>
 
-<div align="center">
-<sub>Feito com Python, Salesforce, Turso e Hugging Face · © Vinicius de Souza Santos</sub>
-</div>
+<div align="center"><sub>Feito com Python · Salesforce · Turso · Hugging Face &nbsp;·&nbsp; © Vinicius de Souza Santos</sub></div>

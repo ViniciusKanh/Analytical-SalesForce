@@ -224,6 +224,62 @@ def run_get(
     )
 
 
+@app.get("/days")
+def days(
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+) -> dict[str, Any]:
+    """Lista as datas que já têm relatório salvo no Turso (para o seletor)."""
+    _exigir_token(x_api_key)
+    from src.database.repositories import ReportRepository
+    from src.database.turso_client import get_turso_client
+
+    try:
+        repo = ReportRepository(get_turso_client())
+        return {"dates": repo.listar_datas(90)}
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"Falha ao listar dias: {type(exc).__name__}: {exc}"
+        )
+
+
+@app.get("/day/{data}")
+def day(
+    data: str,
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+) -> dict[str, Any]:
+    """Retorna TODOS os dados salvos de um dia (sem reexecutar o agente).
+
+    Lê o relatório salvo no Turso e devolve métricas, alertas, destaques e o
+    Markdown — é o que alimenta as telas do front a partir do banco.
+    """
+    _exigir_token(x_api_key)
+    from src.database.repositories import ReportRepository
+    from src.database.turso_client import get_turso_client
+
+    try:
+        dia = parse_data(data)
+        repo = ReportRepository(get_turso_client())
+        registro = repo.buscar_relatorio(dia)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"Falha ao ler o dia: {type(exc).__name__}: {exc}"
+        )
+    if not registro:
+        raise HTTPException(status_code=404, detail=f"Sem relatório salvo para {data}.")
+
+    p = registro.get("payload") or {}
+    return {
+        "date": str(dia),
+        "provider": registro.get("provider"),
+        "report_markdown": registro.get("markdown", ""),
+        "metrics": p.get("metrics", {}),
+        "alerts": p.get("alerts", []),
+        "highlights": p.get("highlights", {}),
+        "data_quality": p.get("data_quality", {}),
+        "alerts_count": len(p.get("alerts", []) or []),
+    }
+
+
 @app.get("/history")
 def history(
     days: int = 7,

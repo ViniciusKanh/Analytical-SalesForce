@@ -313,6 +313,40 @@ class ReportRepository:
         )
         logger.info("Relatório salvo no Turso para %s (provider=%s).", data_str, llm_provider)
 
+    def buscar_relatorio(self, report_date: date) -> dict[str, Any] | None:
+        """Busca o relatório salvo de um dia (Markdown + payload JSON completo).
+
+        O ``payload`` inclui métricas, alertas, destaques e qualidade de dados —
+        ou seja, tudo que o front precisa para montar as telas a partir do banco.
+        """
+        linha = self._client.fetch_one(
+            """
+            SELECT report_markdown, report_json, llm_provider, created_at
+              FROM daily_reports WHERE report_date = ?
+            """,
+            (para_soql_date(report_date),),
+        )
+        if not linha:
+            return None
+        try:
+            payload = json.loads(linha.get("report_json") or "{}")
+        except (ValueError, TypeError):
+            payload = {}
+        return {
+            "markdown": linha.get("report_markdown") or "",
+            "payload": payload,
+            "provider": linha.get("llm_provider"),
+            "created_at": linha.get("created_at"),
+        }
+
+    def listar_datas(self, limite: int = 90) -> list[str]:
+        """Lista as datas (mais recentes primeiro) que possuem relatório salvo."""
+        linhas = self._client.fetch_all(
+            "SELECT report_date FROM daily_reports ORDER BY report_date DESC LIMIT ?",
+            (int(limite),),
+        )
+        return [linha["report_date"] for linha in linhas if linha.get("report_date")]
+
 
 # ----------------------------------------------------------------------
 # salesforce_snapshots
