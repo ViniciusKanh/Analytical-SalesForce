@@ -176,7 +176,7 @@ analytical-force/
 
 ---
 
-## ⚙️ Configuração (.env)
+## ⚙️ Configuração (.env) 
 
 Copie `.env.example` → `.env`. **Nunca** faça commit do `.env`.
 
