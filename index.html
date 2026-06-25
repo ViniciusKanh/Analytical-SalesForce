@@ -94,6 +94,10 @@
   .tab.active{background:var(--brand);color:#fff;border-color:var(--brand)}
   .panel{display:none;border:1px solid var(--line);border-radius:13px;padding:18px 22px;background:var(--surface);max-height:600px;overflow:auto}
   .panel.active{display:block} .panel h2{font-size:16px;color:var(--brand)} .panel table{border-collapse:collapse;width:100%} .panel td,.panel th{border:1px solid var(--line);padding:6px 9px;font-size:13px}
+  table.owners{width:100%;border-collapse:collapse}
+  .owners th,.owners td{border-bottom:1px solid var(--line);padding:8px 10px;font-size:13px;text-align:left}
+  .owners th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  .owners tbody tr:hover{background:var(--surface2)}
   .empty{text-align:center;color:var(--faint);padding:40px 20px;font-size:14px}
   .err{background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.3);color:var(--high);padding:13px 15px;border-radius:12px;font-size:14px;white-space:pre-wrap}
   label.lbl{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 7px;font-weight:600}
@@ -293,12 +297,27 @@
         return `<div class='dcard'><div class='dh'>${DROT[k]||k}<span class='ct'>${it.length}</span></div><ul>${lis}</ul></div>`;}).join("")+`</div></div>`;
   }
 
+  function pipelineVal(O){return (O.open_pipeline_product_value!=null&&O.open_pipeline_product_value)?O.open_pipeline_product_value:O.open_pipeline_amount;}
+  function pipelineOwnerCard(O){
+    const pbo=O.pipeline_by_owner||{};const ks=Object.keys(pbo);if(!ks.length)return "";
+    const total=O.open_pipeline_product_value||O.open_pipeline_amount||0;
+    const rows=ks.map(k=>`<tr><td>${esc(k)}</td><td style='text-align:right'>${moeda(pbo[k])}</td></tr>`).join("");
+    return `<div class='card'><div class='sec-h'><h2>💰 Pipeline por vendedor</h2><span class='chip'>Total: ${moeda(total)}</span></div>
+      <table class='owners'><thead><tr><th>Vendedor</th><th style='text-align:right'>Pipeline</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+  function leadsOwnerCard(L){
+    const lbo=L.leads_by_owner||{};const ks=Object.keys(lbo);if(!ks.length)return "";
+    const rows=ks.map(k=>{const d=lbo[k];return `<tr><td>${esc(k)}</td><td style='text-align:right'>${d.total}</td><td style='text-align:right'>${d.converted}</td><td style='text-align:right'>${pct(d.conversion_rate)}</td></tr>`;}).join("");
+    return `<div class='card'><div class='sec-h'><h2>🌱 Leads por vendedor</h2><span class='chip'>com / sem conversão</span></div>
+      <table class='owners'><thead><tr><th>Vendedor</th><th style='text-align:right'>Leads</th><th style='text-align:right'>Convert.</th><th style='text-align:right'>Taxa</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
   // ===== views =====
   function viewDashboard(){
     const L=M("leads"),O=M("opportunities"),T=M("tasks"),Sa=M("satisfaction"),C=M("cancellations");
     const resumo=extrairResumo(S.report_markdown);
     const cards=[["🌱","Leads novos",num(L.new_leads),"blue"],["🎯","Conversão",pct(L.conversion_rate),"blue"],
-      ["💰","Pipeline aberto",moeda(O.open_pipeline_amount),"blue"],["🏆","Ganhas",num(O.won_opportunities),"green"],
+      ["💰","Pipeline aberto",moeda(pipelineVal(O)),"blue"],["🏆","Ganhas",num(O.won_opportunities),"green"],
       ["📉","Perdidas",num(O.lost_opportunities),"red"],["🚧","Paradas",num(O.stalled_opportunities),"amber"],
       ["⏰","Tarefas vencidas",num(T.tasks_overdue),"amber"]];
     if(Sa.configured&&Sa.responses)cards.push(["😊","Satisfação",num(Sa.avg_score),"green"]);
@@ -314,11 +333,11 @@
     return `<div class='card'><div class='sec-h'><h2>💼 Oportunidades — ${esc(S.date)}</h2></div>${statGrid([
       ["🆕","Novas",num(O.new_opportunities),"blue"],["📂","Abertas",num(O.open_opportunities),"blue"],
       ["🏆","Ganhas",num(O.won_opportunities),"green"],["📉","Perdidas",num(O.lost_opportunities),"red"],
-      ["💰","Pipeline aberto",moeda(O.open_pipeline_amount),"blue"],["💵","Valor ganho",moeda(O.won_amount),"green"],
+      ["💰","Pipeline aberto",moeda(pipelineVal(O)),"blue"],["💵","Valor ganho",moeda(O.won_amount),"green"],
       ["🎯","Win rate",pct(O.win_rate),""],["📊","Loss rate",pct(O.loss_rate),""],
       ["🚧","Paradas",num(O.stalled_opportunities),"amber"],["🔴","Alto valor paradas",num(O.high_value_stalled_opportunities),"red"],
       ["🔕","Sem próxima tarefa",num(O.opportunities_without_next_task),"amber"],["📅","Fecham no mês",num(O.opportunities_closing_this_month),""],
-    ])}</div>${highlightsCards(["oportunidades_travadas","oportunidades_ganhas"])}`;
+    ])}</div>${pipelineOwnerCard(O)}${highlightsCards(["oportunidades_travadas","oportunidades_ganhas"])}`;
   }
   function viewLeads(){
     const L=M("leads");
@@ -326,7 +345,7 @@
       ["🆕","Novos",num(L.new_leads),"blue"],["✅","Convertidos",num(L.converted_leads),"green"],
       ["🎯","Conversão",pct(L.conversion_rate),"blue"],["⏳","Sem 1ª tarefa",num(L.leads_without_first_task),"amber"],
       ["⏱️","Tempo médio 1ª tarefa (h)",num(L.avg_time_to_first_task_hours),""],["📈","Origem top",num(L.top_lead_source_by_volume),""],
-    ])}</div>${highlightsCards(["leads_criados","leads_sem_tarefa"])}`;
+    ])}</div>${leadsOwnerCard(L)}${highlightsCards(["leads_criados","leads_sem_tarefa"])}`;
   }
   function viewTarefas(){
     const T=M("tasks");

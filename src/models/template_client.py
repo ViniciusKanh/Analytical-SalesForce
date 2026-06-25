@@ -229,28 +229,161 @@ def _secao_prioridades(alertas: list[dict[str, Any]]) -> list[str]:
     return linhas
 
 
+def _pipeline_valor(opp: dict[str, Any]) -> Any:
+    """Usa o valor de produtos (recorrente+pontual) quando houver; senão Amount."""
+    pv = opp.get("open_pipeline_product_value")
+    return pv if pv else opp.get("open_pipeline_amount")
+
+
 def _resumo_executivo_template(payload: dict[str, Any]) -> list[str]:
-    """Resumo executivo baseado em regras (quando não há narrativa de IA)."""
+    """Resumo executivo em **storytelling**, por regras (sem IA).
+
+    Constrói uma narrativa executiva a partir das métricas calculadas,
+    adaptando o tom ao cenário do dia (tranquilo, atenção ou crítico) e
+    destacando os pontos que exigem ação. Nenhum número é inventado.
+    """
     metrics = payload.get("metrics", {})
     leads = metrics.get("leads", {}) or {}
     opp = metrics.get("opportunities", {}) or {}
+    tasks = metrics.get("tasks", {}) or {}
+    sat = metrics.get("satisfaction", {}) or {}
+    canc = metrics.get("cancellations", {}) or {}
     alertas = payload.get("alerts", []) or []
     altos = sum(1 for a in alertas if a.get("severity") == "high")
+    data = payload.get("report_date", "o dia")
 
-    frases = [
-        f"Foram gerados **{len(alertas)} alerta(s)**, sendo **{altos} de severidade alta**.",
-        f"Entrada de **{_num(leads.get('new_leads'))} novo(s) lead(s)** "
-        f"com conversão de **{_pct(leads.get('conversion_rate'))}**.",
-        f"Pipeline aberto em **{_moeda(opp.get('open_pipeline_amount'))}**, "
-        f"com **{_num(opp.get('won_opportunities'))} ganha(s)** e "
-        f"**{_num(opp.get('lost_opportunities'))} perdida(s)** no dia.",
-    ]
-    if opp.get("stalled_opportunities"):
-        frases.append(
-            f"Atenção: **{_num(opp.get('stalled_opportunities'))} oportunidade(s) parada(s)** "
-            "exigem reengajamento."
+    # Tom de abertura conforme o cenário.
+    if altos == 0:
+        abertura = (
+            f"O dia **{data}** transcorreu sob controle: a operação comercial não "
+            "acumulou riscos altos e segue dentro do ritmo esperado."
         )
-    return ["## 1. Resumo Executivo", "", " ".join(frases)]
+    elif altos <= 2:
+        abertura = (
+            f"O dia **{data}** pede atenção pontual: surgiram **{altos} risco(s) alto(s)** "
+            "que, se tratados hoje, evitam impacto no funil."
+        )
+    else:
+        abertura = (
+            f"O dia **{data}** exige ação imediata: são **{altos} riscos altos** "
+            "concentrados que podem comprometer pipeline e receita se não forem endereçados."
+        )
+
+    # Capítulo Leads.
+    novos = _num(leads.get("new_leads"))
+    conv = _pct(leads.get("conversion_rate"))
+    sem_tarefa = int(leads.get("leads_without_first_task") or 0)
+    cap_leads = (
+        f"Na entrada do funil, **{novos} novo(s) lead(s)** chegaram com conversão de "
+        f"**{conv}**{_variacao(leads, 'conversion_rate')}."
+    )
+    if sem_tarefa:
+        cap_leads += (
+            f" Há **{sem_tarefa} lead(s) sem a primeira tarefa**, ou seja, contatos novos "
+            "ainda sem follow-up — o ponto mais barato de corrigir agora."
+        )
+
+    # Capítulo Oportunidades.
+    ganhas = _num(opp.get("won_opportunities"))
+    perdidas = _num(opp.get("lost_opportunities"))
+    pipeline = _moeda(_pipeline_valor(opp))
+    paradas = int(opp.get("stalled_opportunities") or 0)
+    alto_valor = int(opp.get("high_value_stalled_opportunities") or 0)
+    cap_opp = (
+        f"No pipeline, o valor em aberto soma **{pipeline}**"
+        f"{_variacao(opp, 'open_pipeline_amount')}, com **{ganhas} ganha(s)** e "
+        f"**{perdidas} perdida(s)** fechando no dia."
+    )
+    if alto_valor:
+        cap_opp += (
+            f" O sinal mais sensível: **{alto_valor} oportunidade(s) de alto valor parada(s)** — "
+            "negócios relevantes que estão esfriando e merecem contato prioritário."
+        )
+    elif paradas:
+        cap_opp += f" Ainda há **{paradas} oportunidade(s) parada(s)** aguardando reengajamento."
+
+    # Capítulo operação (tarefas) — sem alarmismo.
+    venc = int(tasks.get("tasks_overdue") or 0)
+    cap_ops = ""
+    if venc:
+        cap_ops = (
+            f"Na operação, o backlog registra **{venc} tarefa(s) vencida(s)**; o foco do dia "
+            "deve recair sobre as ligadas a negócios de maior valor."
+        )
+
+    # Capítulo cliente (satisfação/cancelamento), se configurado.
+    cap_cliente = ""
+    if sat.get("configured") and sat.get("responses"):
+        cap_cliente += (
+            f"Do lado do cliente, a satisfação média ficou em **{_num(sat.get('avg_score'))}** "
+            f"com **{_num(sat.get('negative_count'))} avaliação(ões) negativa(s)**."
+        )
+    if canc.get("configured") and canc.get("cancellations_count"):
+        cap_cliente += (
+            f" Foram **{_num(canc.get('cancellations_count'))} cancelamento(s)**, impacto de "
+            f"**{_moeda(canc.get('mrr_impact'))}** em MRR — atenção à retenção."
+        )
+
+    # Fecho com direção.
+    if altos:
+        titulos = "; ".join(a.get("title", "") for a in alertas if a.get("severity") == "high")
+        fecho = (
+            f"**Direção para hoje:** priorizar {titulos.lower()}. As ações detalhadas estão "
+            "na seção de Prioridades."
+        )
+    else:
+        fecho = (
+            "**Direção para hoje:** manter a cadência, acompanhar as variações sinalizadas e "
+            "antecipar follow-ups dos negócios de maior valor."
+        )
+
+    paragrafos = [abertura, cap_leads, cap_opp]
+    if cap_ops:
+        paragrafos.append(cap_ops)
+    if cap_cliente:
+        paragrafos.append(cap_cliente.strip())
+    paragrafos.append(fecho)
+    return ["## 1. Resumo Executivo", "", "\n\n".join(paragrafos)]
+
+
+def gerar_plano_acao(alerta: dict[str, Any]) -> str:
+    """Gera um plano de ação em storytelling para um alerta (por regras, sem IA).
+
+    Usa o diagnóstico, a ação recomendada e os registros afetados do próprio
+    alerta para montar um texto acionável — sem inventar dados.
+    """
+    categoria = alerta.get("category", "Geral")
+    descricao = alerta.get("description", "").strip()
+    acao = alerta.get("recommended_action", "").strip()
+    registros = alerta.get("affected_records") or []
+
+    linhas: list[str] = []
+    if descricao:
+        linhas.append(f"**O que está acontecendo:** {descricao}")
+    # Por que importa (por categoria).
+    porques = {
+        "Oportunidades": "Cada dia parado reduz a probabilidade de fechamento e trava o pipeline.",
+        "Leads": "Lead sem follow-up rápido esfria — a janela de conversão é curta.",
+        "Tarefas": "Tarefas vencidas acumulam e mascaram o que é realmente prioritário.",
+        "Satisfação": "Clientes insatisfeitos hoje são risco de churn amanhã.",
+        "Cancelamentos": "Cancelamentos atacam diretamente a receita recorrente.",
+    }
+    if porques.get(categoria):
+        linhas.append(f"**Por que importa:** {porques[categoria]}")
+    if acao:
+        linhas.append(f"**Plano sugerido:** {acao}")
+    if registros:
+        linhas.append("**Comece por (maior valor/risco primeiro):**")
+        for r in registros[:5]:
+            partes = [str(r.get("name") or r.get("id") or "registro")]
+            if r.get("info"):
+                partes.append(str(r["info"]))
+            if r.get("amount") is not None:
+                partes.append(_moeda(r["amount"]))
+            if r.get("owner"):
+                partes.append(f"resp.: {r['owner']}")
+            linhas.append("- " + " — ".join(partes))
+    return "\n".join(linhas).strip()
 
 
 def _conclusao_template(payload: dict[str, Any]) -> list[str]:

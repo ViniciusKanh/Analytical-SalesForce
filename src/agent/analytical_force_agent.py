@@ -39,6 +39,7 @@ from ..database.repositories import (
 from ..database.turso_client import get_turso_client
 from ..delivery.file_writer import salvar_relatorio_md
 from ..models.model_router import ModelRouter
+from ..models.template_client import gerar_plano_acao
 from ..salesforce.client import SalesforceAuthError, get_salesforce_client
 from ..salesforce.extractors import SalesforceExtractor
 from ..salesforce.field_mapping import get_field_mapping
@@ -189,10 +190,9 @@ class AnalyticalForceAgent:
             resultado.destaques = destaques
             self._anexar_destaques_aos_alertas(alertas, destaques)
 
-            # Enriquecimento opcional por IA: plano de ação por alerta crítico
-            # (apenas quando ClickUp e a IA de tarefas estão ativos).
-            if self._settings.clickup.auto_create and self._settings.clickup.ai_tasks:
-                self._enriquecer_alertas_com_ia(alertas, dia_ref)
+            # Plano de ação por alerta crítico: IA quando ativa, senão storytelling
+            # por template (sem custo). Garante tarefas/e-mail sempre acionáveis.
+            self._enriquecer_alertas_com_planos(alertas, dia_ref)
 
             # --- Relatório (template ou modelo local) ---
             payload = self._montar_payload(
@@ -241,6 +241,7 @@ class AnalyticalForceAgent:
             field_mapping=get_field_mapping(),
             timezone=self._tz,
             snapshot_repo=snapshot_repo,
+            ignore_lead_names=self._settings.lead_ignore_names,
         )
 
     def _extrair(self, extrator: SalesforceExtractor, dia: date) -> dict[str, pd.DataFrame]:
@@ -311,6 +312,7 @@ class AnalyticalForceAgent:
             high_value_amount=risk.high_value_opportunity_amount,
             max_days_without_activity=risk.opportunity_max_days_without_activity,
             min_amount=risk.opportunity_min_amount,
+            product_value_threshold=risk.opportunity_product_value_threshold,
             timezone=self._tz,
         )
         tarefas = calculate_task_metrics(
@@ -497,43 +499,44 @@ class AnalyticalForceAgent:
     # ------------------------------------------------------------------
     # Enriquecimento de alertas por IA (plano de ação para tarefas)
     # ------------------------------------------------------------------
-    def _enriquecer_alertas_com_ia(
+    def _enriquecer_alertas_com_planos(
         self, alertas: list[dict[str, Any]], dia: date
     ) -> None:
-        """Gera, via modelo local, um plano de ação por alerta de alta severidade.
+        """Anexa um plano de ação a cada alerta de alta severidade.
 
-        O plano usa apenas os dados concretos do alerta (registros afetados),
-        respeitando o princípio "a IA interpreta, o Python calcula". Qualquer
-        falha no modelo apenas pula o enriquecimento — a tarefa permanece com
-        os dados estruturados do alerta.
+        Usa IA quando há provider de IA ativo **e** ``CLICKUP_AI_TASKS=true``;
+        caso contrário (ou se a IA falhar), usa o **template storytelling** por
+        regras — sem custo de inferência. Garante que e-mail e tarefas sempre
+        venham com narrativa acionável.
         """
-        if not self._settings.model.usa_ia:
+        criticos = [a for a in alertas if a.get("severity") == "high"][:5]
+        if not criticos:
             return
-        router = ModelRouter(self._settings.model)
+        usa_ia = self._settings.model.usa_ia and self._settings.clickup.ai_tasks
+        router = ModelRouter(self._settings.model) if usa_ia else None
         system = (
             "Você é um analista comercial sênior do agente Analytical-Force. "
             "Escreva planos de ação curtos, objetivos e específicos, em português "
-            "do Brasil. Use SOMENTE os dados fornecidos; nunca invente números, "
-            "nomes ou clientes."
+            "do Brasil. Use SOMENTE os dados fornecidos; nunca invente números ou nomes."
         )
-        # Limita a quantidade de planos por IA: cada geração em CPU é custosa.
-        # Os demais alertas mantêm os dados estruturados (já acionáveis).
-        criticos = [a for a in alertas if a.get("severity") == "high"][:3]
-        enriquecidos = 0
         for alerta in criticos:
-            prompt = self._prompt_plano_acao(alerta, dia)
-            try:
-                texto, _ = router.interpretar(prompt, system=system)
-            except Exception as exc:  # IA nunca derruba o pipeline
-                logger.warning(
-                    "Falha ao gerar plano de ação por IA: %s", type(exc).__name__
-                )
-                texto = None
-            if texto and texto.strip():
-                alerta["action_plan"] = texto.strip()
-                enriquecidos += 1
-        if enriquecidos:
-            logger.info("Planos de ação por IA gerados: %d.", enriquecidos)
+            plano: str | None = None
+            if usa_ia and router is not None:
+                try:
+                    plano, _ = router.interpretar(
+                        self._prompt_plano_acao(alerta, dia), system=system
+                    )
+                except Exception as exc:  # IA nunca derruba o pipeline
+                    logger.warning("Falha no plano por IA: %s", type(exc).__name__)
+                    plano = None
+            if not (plano and plano.strip()):
+                # Fallback (ou modo padrão sem IA): storytelling por regras.
+                plano = gerar_plano_acao(alerta)
+            if plano and plano.strip():
+                alerta["action_plan"] = plano.strip()
+        logger.info(
+            "Planos de ação anexados a %d alerta(s) (ia=%s).", len(criticos), usa_ia
+        )
 
     @staticmethod
     def _prompt_plano_acao(alerta: dict[str, Any], dia: date) -> str:

@@ -50,6 +50,7 @@ class SalesforceExtractor:
         field_mapping: FieldMapping,
         timezone: str = "America/Sao_Paulo",
         snapshot_repo: SnapshotRepository | None = None,
+        ignore_lead_names: list[str] | None = None,
     ) -> None:
         """Inicializa o extrator.
 
@@ -67,6 +68,18 @@ class SalesforceExtractor:
         self._fm = self._validar_campos_customizados(field_mapping)
         self._tz = timezone
         self._snapshot_repo = snapshot_repo
+        self._ignore_lead_names = [n for n in (ignore_lead_names or []) if n]
+
+    def _filtrar_leads_ignorados(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Remove leads de teste (nome contém algum trecho configurado p/ ignorar)."""
+        if df.empty or not self._ignore_lead_names or "Name" not in df.columns:
+            return df
+        nomes = df["Name"].astype(str).str.lower()
+        manter = ~nomes.apply(lambda n: any(t in n for t in self._ignore_lead_names))
+        removidos = int((~manter).sum())
+        if removidos:
+            logger.info("Leads de teste ignorados: %d.", removidos)
+        return df[manter]
 
     # ------------------------------------------------------------------
     # Validação de campos contra o schema (describe, somente leitura)
@@ -136,6 +149,8 @@ class SalesforceExtractor:
             opp_dias_sem_atividade=_validar(fm.opp_dias_sem_atividade, campos_opp),
             opp_gc_nome=_validar(fm.opp_gc_nome, campos_opp),
             opp_valor_mensal=_validar(fm.opp_valor_mensal, campos_opp),
+            opp_valor_mensal_produtos=_validar(fm.opp_valor_mensal_produtos, campos_opp),
+            opp_valor_pontual_produtos=_validar(fm.opp_valor_pontual_produtos, campos_opp),
         )
 
     # ------------------------------------------------------------------
@@ -202,7 +217,7 @@ class SalesforceExtractor:
         self._salvar_snapshot(dia, "Lead", registros)
         logger.info("Leads criados extraídos: %d.", len(registros))
         colunas = _colunas_lead(self._fm)
-        return self._para_dataframe(registros, colunas)
+        return self._filtrar_leads_ignorados(self._para_dataframe(registros, colunas))
 
     def extrair_leads_modificados(self, dia: date) -> pd.DataFrame:
         """Extrai leads modificados no dia informado."""
@@ -213,19 +228,43 @@ class SalesforceExtractor:
         registros = self._client.query(soql)
         logger.info("Leads modificados extraídos: %d.", len(registros))
         colunas = _colunas_lead(self._fm)
-        return self._para_dataframe(registros, colunas)
+        return self._filtrar_leads_ignorados(self._para_dataframe(registros, colunas))
 
     # ------------------------------------------------------------------
     # Extração — Oportunidades
     # ------------------------------------------------------------------
     def extrair_oportunidades_abertas(self, dia: date) -> pd.DataFrame:
-        """Extrai todas as oportunidades abertas."""
+        """Extrai todas as oportunidades abertas (com coluna ValorProdutos)."""
         soql = queries.oportunidades_abertas(self._fm)
         registros = self._client.query(soql)
         self._salvar_snapshot(dia, "Opportunity", registros)
         logger.info("Oportunidades abertas extraídas: %d.", len(registros))
         colunas = _colunas_opp(self._fm)
-        return self._para_dataframe(registros, colunas)
+        return self._adicionar_valor_produtos(self._para_dataframe(registros, colunas))
+
+    def _adicionar_valor_produtos(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Cria a coluna ``ValorProdutos`` = recorrente + pontual dos produtos.
+
+        Usa os campos configurados (``Valor_Mensal_Produtos__c`` +
+        ``Valor_Pontual_Produtos__c``). Se nenhum existir na org, não cria a
+        coluna (o cálculo cai para ``Amount``).
+        """
+        if df.empty:
+            return df
+        cols = [
+            c
+            for c in [self._fm.opp_valor_mensal_produtos, self._fm.opp_valor_pontual_produtos]
+            if c and c in df.columns
+        ]
+        if not cols:
+            return df
+        df = df.copy()
+        soma = None
+        for c in cols:
+            v = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
+            soma = v if soma is None else soma + v
+        df["ValorProdutos"] = soma
+        return df
 
     def extrair_oportunidades_criadas(self, dia: date) -> pd.DataFrame:
         """Extrai oportunidades criadas no dia."""

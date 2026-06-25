@@ -31,6 +31,9 @@ class FieldMapping:
     opp_dias_sem_atividade: str = "OppDiasSemAtividade__c"
     opp_gc_nome: str = "GC_Nome__c"
     opp_valor_mensal: str = "Valor_Liquido_Mensal__c"
+    # Valor de produtos (para "valor total" = recorrente + pontual).
+    opp_valor_mensal_produtos: str = "Valor_Mensal_Produtos__c"
+    opp_valor_pontual_produtos: str = "Valor_Pontual_Produtos__c"
 
     def campos_lead_customizados(self) -> list[str]:
         """Lista de campos customizados de Lead a incluir nas queries.
@@ -53,6 +56,8 @@ class FieldMapping:
             self.opp_dias_sem_atividade,
             self.opp_gc_nome,
             self.opp_valor_mensal,
+            self.opp_valor_mensal_produtos,
+            self.opp_valor_pontual_produtos,
         ]
         # Remove vazios e duplicatas preservando a ordem.
         vistos: list[str] = []
@@ -78,4 +83,6 @@ def get_field_mapping() -> FieldMapping:
         opp_dias_sem_atividade=cf.get("opp_dias_sem_atividade", "OppDiasSemAtividade__c"),
         opp_gc_nome=cf.get("opp_gc_nome", "GC_Nome__c"),
         opp_valor_mensal=cf.get("opp_valor_mensal", "Valor_Liquido_Mensal__c"),
+        opp_valor_mensal_produtos=cf.get("opp_valor_mensal_produtos", "Valor_Mensal_Produtos__c"),
+        opp_valor_pontual_produtos=cf.get("opp_valor_pontual_produtos", "Valor_Pontual_Produtos__c"),
     )

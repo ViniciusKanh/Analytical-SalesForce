@@ -86,29 +86,47 @@ def _para_int(valor: Any) -> int | None:
     return None if pd.isna(num) else int(num)
 
 
+def _nome_owner(valor: Any) -> str | None:
+    """Extrai o nome do dono a partir de ``Owner.Name`` (dict) ou texto."""
+    if isinstance(valor, dict):
+        nome = str(valor.get("Name") or "").strip()
+        return nome or None
+    if valor is None:
+        return None
+    txt = str(valor).strip()
+    return txt or None
+
+
+def _campo_valor(df: pd.DataFrame) -> str:
+    """Define o campo de valor a usar: ValorProdutos (preferido) ou Amount."""
+    return "ValorProdutos" if coluna_existe(df, "ValorProdutos") else "Amount"
+
+
 def _detalhes_oportunidades(df: pd.DataFrame, limite: int = 10) -> list[dict[str, Any]]:
     """Extrai detalhes legíveis das oportunidades para alertas/tarefas.
 
-    Ordena por valor (desc) quando há ``Amount`` e limita a ``limite`` itens.
-    Cada item traz nome, valor, estágio, responsável (GC), dias sem atividade
-    e a próxima ação — dados concretos para uma tarefa acionável.
+    Ordena pelo valor (ValorProdutos quando disponível, senão Amount) desc.
+    Cada item traz nome, valor, estágio, responsável (vendedor/GC), dias sem
+    atividade e a próxima ação — dados concretos para uma tarefa acionável.
     """
     if is_dataframe_vazio(df):
         return []
     trabalho = df.copy()
-    tem_amount = coluna_existe(trabalho, "Amount")
-    if tem_amount:
-        trabalho["_amt"] = pd.to_numeric(trabalho["Amount"], errors="coerce").fillna(0.0)
+    campo = _campo_valor(trabalho)
+    tem_valor = coluna_existe(trabalho, campo)
+    if tem_valor:
+        trabalho["_amt"] = pd.to_numeric(trabalho[campo], errors="coerce").fillna(0.0)
         trabalho = trabalho.sort_values("_amt", ascending=False)
     detalhes: list[dict[str, Any]] = []
     for _, row in trabalho.head(limite).iterrows():
+        dono = _nome_owner(row.get("Owner")) or _texto(row.get("GC_Nome__c")) or _texto(row.get("OwnerId"))
         detalhes.append(
             {
                 "id": _texto(row.get("Id")),
                 "name": _texto(row.get("Name")) or "(sem nome)",
-                "amount": _para_float(row.get("Amount")) if tem_amount else None,
+                "amount": _para_float(row.get(campo)) if tem_valor else None,
                 "stage": _texto(row.get("StageName")) or None,
-                "owner": _texto(row.get("GC_Nome__c")) or _texto(row.get("OwnerId")) or None,
+                "owner": dono or None,
                 "days_inactive": _para_int(row.get("OppDiasSemAtividade__c")),
                 "next_action": _texto(row.get("Proxima_acao__c")) or None,
             }
@@ -126,6 +144,7 @@ def calculate_opportunity_metrics(
     high_value_amount: float = 50000.0,
     max_days_without_activity: int = 7,
     min_amount: float = 0.0,
+    product_value_threshold: float = 20000.0,
     reference_date: date | None = None,
     timezone: str = "America/Sao_Paulo",
 ) -> dict[str, Any]:
@@ -181,6 +200,25 @@ def calculate_opportunity_metrics(
     # --- Pipeline aberto ---
     open_pipeline_amount = arredondar(_soma_amount(opps_open_df), 2) or 0.0
 
+    # Pipeline por VALOR DE PRODUTOS (recorrente+pontual) e por VENDEDOR (dono).
+    open_pipeline_product_value = 0.0
+    pipeline_by_owner: dict[str, float] = {}
+    if not is_dataframe_vazio(opps_open_df):
+        campo_pl = _campo_valor(opps_open_df)
+        if coluna_existe(opps_open_df, campo_pl):
+            tmp = opps_open_df.copy()
+            tmp["_v"] = pd.to_numeric(tmp[campo_pl], errors="coerce").fillna(0.0)
+            open_pipeline_product_value = arredondar(float(tmp["_v"].sum()), 2) or 0.0
+            if coluna_existe(tmp, "Owner") or coluna_existe(tmp, "OwnerId"):
+                tmp["_owner"] = tmp.apply(
+                    lambda r: _nome_owner(r.get("Owner")) or _texto(r.get("OwnerId")) or "—",
+                    axis=1,
+                )
+                agrup = tmp.groupby("_owner")["_v"].sum().sort_values(ascending=False)
+                pipeline_by_owner = {
+                    str(k): (arredondar(float(v), 2) or 0.0) for k, v in agrup.head(20).items()
+                }
+
     # --- Oportunidades paradas (sem atividade recente) ---
     stalled_opportunities = 0
     high_value_stalled_opportunities = 0
@@ -195,10 +233,17 @@ def calculate_opportunity_metrics(
         if coluna_existe(paradas, "Id"):
             stalled_ids = [str(i) for i in paradas["Id"].tolist()]
         stalled_details = _detalhes_oportunidades(paradas)
-        if coluna_existe(paradas, "Amount"):
-            amounts = pd.to_numeric(paradas["Amount"], errors="coerce").fillna(0.0)
-            # Subconjunto de ALTO VALOR (corrige alerta apontando item de baixo valor).
-            alto = paradas[(amounts >= float(high_value_amount)).values]
+        # ALTO VALOR: usa o VALOR TOTAL DOS PRODUTOS (recorrente+pontual) quando
+        # disponível, com limiar próprio (ex.: 20k); senão cai para Amount.
+        campo_v = _campo_valor(paradas)
+        limiar = (
+            float(product_value_threshold)
+            if campo_v == "ValorProdutos"
+            else float(high_value_amount)
+        )
+        if coluna_existe(paradas, campo_v):
+            valores = pd.to_numeric(paradas[campo_v], errors="coerce").fillna(0.0)
+            alto = paradas[(valores >= limiar).values]
             high_value_stalled_opportunities = int(len(alto))
             if coluna_existe(alto, "Id"):
                 high_value_stalled_ids = [str(i) for i in alto["Id"].tolist()]
@@ -229,6 +274,8 @@ def calculate_opportunity_metrics(
         "won_opportunities": won_opportunities,
         "lost_opportunities": lost_opportunities,
         "open_pipeline_amount": open_pipeline_amount,
+        "open_pipeline_product_value": open_pipeline_product_value,
+        "pipeline_by_owner": pipeline_by_owner,
         "won_amount": arredondar(won_amount, 2) or 0.0,
         "lost_amount": arredondar(lost_amount, 2) or 0.0,
         "win_rate": win_rate,

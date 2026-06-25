@@ -59,6 +59,47 @@ def _horas_ate_primeira_tarefa(
     return [float(h) for h in validos.tolist()]
 
 
+def _nome_owner(row: Any) -> str:
+    """Extrai o nome do dono (Owner.Name) de uma linha de Lead."""
+    owner = row.get("Owner")
+    if isinstance(owner, dict):
+        nome = str(owner.get("Name") or "").strip()
+        if nome:
+            return nome
+    oid = row.get("OwnerId")
+    return str(oid).strip() if oid is not None and str(oid).strip() else "—"
+
+
+def _leads_por_owner(df: pd.DataFrame) -> dict[str, dict[str, Any]]:
+    """Distribuição de leads por vendedor (dono), com convertidos e taxa.
+
+    Usa os leads modificados (que carregam ``IsConverted`` e o dono).
+    """
+    if is_dataframe_vazio(df):
+        return {}
+    if "Owner" not in df.columns and "OwnerId" not in df.columns:
+        return {}
+    work = df.copy()
+    work["_owner"] = work.apply(_nome_owner, axis=1)
+    if "IsConverted" in work.columns:
+        work["_conv"] = work["IsConverted"].fillna(False).astype(bool)
+    else:
+        work["_conv"] = False
+    resultado: dict[str, dict[str, Any]] = {}
+    for owner, grupo in work.groupby("_owner"):
+        total = int(len(grupo))
+        convertidos = int(grupo["_conv"].sum())
+        resultado[str(owner)] = {
+            "total": total,
+            "converted": convertidos,
+            "not_converted": total - convertidos,
+            "conversion_rate": percentual(convertidos, total) if total else 0.0,
+        }
+    # Ordena por volume (desc) e limita a 20 vendedores.
+    ordenado = sorted(resultado.items(), key=lambda kv: kv[1]["total"], reverse=True)
+    return dict(ordenado[:20])
+
+
 def _conversao_por_origem(df_modificados: pd.DataFrame) -> dict[str, float]:
     """Calcula a taxa de conversão (%) por LeadSource nos leads modificados."""
     if is_dataframe_vazio(df_modificados):
@@ -150,6 +191,7 @@ def calculate_lead_metrics(
         "best_lead_source_by_conversion": best_source,
         "worst_lead_source_by_conversion": worst_source,
         "conversion_rate_by_source": conversao_origem,
+        "leads_by_owner": _leads_por_owner(leads_modified_df),
     }
 
     # --- Comparações históricas ---

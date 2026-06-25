@@ -25,6 +25,7 @@ _LEAD_BASE = [
     "ConvertedDate",
     "IsConverted",
     "OwnerId",
+    "Owner.Name",
 ]
 
 _OPP_BASE = [
@@ -45,6 +46,7 @@ _OPP_BASE = [
     "ForecastCategory",
     "Type",
     "LeadSource",
+    "Owner.Name",
 ]
 
 _OPP_FECHADA = [

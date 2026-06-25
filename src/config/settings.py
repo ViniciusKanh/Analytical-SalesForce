@@ -239,6 +239,8 @@ class RiskSettings:
     # Valor mínimo de oportunidade a considerar na análise de pipeline/risco.
     # 0 = analisa todas. Use para ignorar oportunidades de baixo valor.
     opportunity_min_amount: float = 0.0
+    # Limiar de VALOR DE PRODUTOS (recorrente+pontual) para "alto valor parada".
+    opportunity_product_value_threshold: float = 20000.0
     satisfaction_min_score: float = 7.0
 
 
@@ -316,6 +318,8 @@ class Settings:
     clickup: ClickUpSettings
     report_timezone: str = "America/Sao_Paulo"
     custom_fields: dict[str, str] = field(default_factory=dict)
+    # Nomes (trechos) de leads a IGNORAR na análise (ex.: leads de teste).
+    lead_ignore_names: list[str] = field(default_factory=list)
     # Fontes configuráveis de Satisfação e Cancelamento (objeto + campos).
     # Permitem ativar esses módulos sem fixar nomes no código (regra 16/17).
     satisfaction_source: dict[str, Any] = field(default_factory=dict)
@@ -458,6 +462,12 @@ def _carregar_campos_customizados() -> dict[str, str]:
         ),
         "opp_gc_nome": _get_str("SF_FIELD_OPP_GC_NOME", "GC_Nome__c"),
         "opp_valor_mensal": _get_str("SF_FIELD_OPP_VALOR_MENSAL", "Valor_Liquido_Mensal__c"),
+        "opp_valor_mensal_produtos": _get_str(
+            "SF_FIELD_OPP_VALOR_MENSAL_PRODUTOS", "Valor_Mensal_Produtos__c"
+        ),
+        "opp_valor_pontual_produtos": _get_str(
+            "SF_FIELD_OPP_VALOR_PONTUAL_PRODUTOS", "Valor_Pontual_Produtos__c"
+        ),
     }
 
 
@@ -604,6 +614,9 @@ def get_settings() -> Settings:
             "HIGH_VALUE_OPPORTUNITY_AMOUNT", 50000.0
         ),
         opportunity_min_amount=_get_float("OPPORTUNITY_MIN_AMOUNT", 0.0),
+        opportunity_product_value_threshold=_get_float(
+            "OPPORTUNITY_PRODUCT_VALUE_THRESHOLD", 20000.0
+        ),
         satisfaction_min_score=_get_float("SATISFACTION_MIN_SCORE", 7.0),
     )
 
@@ -639,6 +652,11 @@ def get_settings() -> Settings:
         report_timezone=_get_str("REPORT_TIMEZONE", "America/Sao_Paulo")
         or "America/Sao_Paulo",
         custom_fields=_carregar_campos_customizados(),
+        lead_ignore_names=[
+            n.strip().lower()
+            for n in _get_str("SF_IGNORE_LEAD_NAMES", "teste diego").split(",")
+            if n.strip()
+        ],
         satisfaction_source=_carregar_fonte_satisfacao(),
         cancellation_source=_carregar_fonte_cancelamento(),
     )

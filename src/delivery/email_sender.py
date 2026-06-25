@@ -99,7 +99,10 @@ def _grade_kpis(metrics: dict[str, Any]) -> str:
     celulas: list[str] = [
         _linha_kpi("Leads novos", _num(leads.get("new_leads"))),
         _linha_kpi("Conversão de leads", _pct(leads.get("conversion_rate"))),
-        _linha_kpi("Pipeline aberto", _moeda(opp.get("open_pipeline_amount"))),
+        _linha_kpi(
+            "Pipeline aberto",
+            _moeda(opp.get("open_pipeline_product_value") or opp.get("open_pipeline_amount")),
+        ),
         _linha_kpi("Oportunidades ganhas", _num(opp.get("won_opportunities")), "#15803d"),
         _linha_kpi("Oportunidades perdidas", _num(opp.get("lost_opportunities")), "#b91c1c"),
         _linha_kpi("Oportunidades paradas", _num(opp.get("stalled_opportunities")), "#b45309"),

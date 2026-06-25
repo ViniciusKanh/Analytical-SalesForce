@@ -233,36 +233,14 @@ def _alertas_oportunidades(m: dict[str, Any], risk: RiskSettings) -> list[dict[s
 
 
 def _alertas_tarefas(m: dict[str, Any], risk: RiskSettings) -> list[dict[str, Any]]:
-    """Regras de risco para Tarefas."""
+    """Regras de risco para Tarefas.
+
+    Observação: por decisão do projeto, NÃO geramos alertas de "tarefas vencidas
+    ligadas a oportunidades" nem de "responsável com mais tarefas vencidas" —
+    o volume de tarefas vencidas é muito alto e gerava ruído. Esses números
+    continuam disponíveis nas métricas, mas não viram alerta/tarefa.
+    """
     alertas: list[dict[str, Any]] = []
-
-    venc_opp = int(m.get("overdue_tasks_linked_to_opportunities", 0) or 0)
-    if venc_opp > 0:
-        alertas.append(
-            _alerta(
-                "high",
-                "Tarefas",
-                f"{venc_opp} tarefa(s) vencida(s) em oportunidades",
-                f"{venc_opp} tarefa(s) vencida(s) estão associadas a oportunidades abertas.",
-                "Concluir ou reagendar essas tarefas para não travar o pipeline.",
-                source_object="Task",
-            )
-        )
-
-    top_owner_count = int(m.get("top_overdue_owner_count", 0) or 0)
-    if top_owner_count >= risk.overdue_tasks_owner_threshold:
-        alertas.append(
-            _alerta(
-                "high",
-                "Tarefas",
-                "Responsável com muitas tarefas vencidas",
-                f"O responsável {m.get('top_overdue_owner')} tem {top_owner_count} "
-                f"tarefa(s) vencida(s) (limite: {risk.overdue_tasks_owner_threshold}).",
-                "Redistribuir carga ou apoiar o responsável na regularização.",
-                source_object="Task",
-                source_record_id=m.get("top_overdue_owner"),
-            )
-        )
 
     var_venc = _var_percent_anterior(m, "tasks_overdue")
     if var_venc is not None and var_venc > 0:
