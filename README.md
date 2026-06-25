@@ -6,7 +6,7 @@ colorTo: indigo
 sdk: docker
 app_port: 7860
 pinned: false
-short_description: Agente analítico diário Salesforce + Turso (API somente leitura)
+short_description: Agente analítico diário Salesforce + Turso
 ---
 
 <!-- O bloco acima é o metadata do Hugging Face Spaces. Não remova ao publicar no HF. -->

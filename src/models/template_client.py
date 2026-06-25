@@ -78,6 +78,11 @@ def _linha(rotulo: str, valor: str, sufixo: str = "") -> str:
     return f"- **{rotulo}:** {valor}{sufixo}"
 
 
+def _insight(texto: str) -> str:
+    """Linha de insight (storytelling por regras) ao fim de uma seção."""
+    return f"\n> 💡 **Insight:** {texto}"
+
+
 # ----------------------------------------------------------------------
 # Seções do relatório
 # ----------------------------------------------------------------------
@@ -101,6 +106,18 @@ def _secao_oportunidades(m: dict[str, Any]) -> list[str]:
         _linha("Alto valor paradas", _num(m.get("high_value_stalled_opportunities"))),
         _linha("Fecham no mês", _num(m.get("opportunities_closing_this_month"))),
     ]
+    won = int(m.get("won_opportunities") or 0)
+    lost = int(m.get("lost_opportunities") or 0)
+    alto = int(m.get("high_value_stalled_opportunities") or 0)
+    if alto:
+        linhas.append(_insight(
+            f"{alto} oportunidade(s) de alto valor parada(s) concentram o risco do dia — "
+            "priorize o contato antes que esfriem."))
+    elif won > lost:
+        linhas.append(_insight(f"Saldo positivo: {won} ganha(s) contra {lost} perdida(s) hoje."))
+    elif lost > won:
+        linhas.append(_insight(
+            f"Mais perdas que ganhos hoje ({lost} x {won}) — vale revisar objeções recorrentes."))
     return linhas
 
 
@@ -120,6 +137,14 @@ def _secao_leads(m: dict[str, Any]) -> list[str]:
         _linha("Melhor origem (conversão)", _num(m.get("best_lead_source_by_conversion"))),
         _linha("Pior origem (conversão)", _num(m.get("worst_lead_source_by_conversion"))),
     ]
+    sem = int(m.get("leads_without_first_task") or 0)
+    conv = m.get("conversion_rate")
+    if sem:
+        linhas.append(_insight(
+            f"{sem} lead(s) sem a primeira tarefa — o follow-up rápido é o ganho mais barato hoje."))
+    elif isinstance(conv, (int, float)):
+        linhas.append(_insight(
+            f"Conversão do dia em {_pct(conv)}; acompanhe a melhor origem para replicar o que funciona."))
     return linhas
 
 
@@ -145,6 +170,13 @@ def _secao_tarefas(m: dict[str, Any]) -> list[str]:
                 f"{m.get('top_overdue_owner')} ({_num(m.get('top_overdue_owner_count'))})",
             )
         )
+    venc = int(m.get("tasks_overdue") or 0)
+    taxa = m.get("completion_rate")
+    if venc:
+        linhas.append(_insight(
+            f"{venc} tarefa(s) vencida(s) no total — concentre o esforço nas ligadas a negócios de maior valor."))
+    elif isinstance(taxa, (int, float)):
+        linhas.append(_insight(f"Taxa de conclusão do dia em {_pct(taxa)}."))
     return linhas
 
 
@@ -169,6 +201,13 @@ def _secao_satisfacao(m: dict[str, Any]) -> list[str]:
     if motivos:
         itens = ", ".join(f"{k} ({v})" for k, v in motivos.items())
         linhas.append(_linha("Principais motivos negativos", itens))
+    neg = int(m.get("negative_count") or 0)
+    avg = m.get("avg_score")
+    if neg:
+        linhas.append(_insight(
+            f"{neg} avaliação(ões) negativa(s) — acione o CS para os clientes em risco antes que virem churn."))
+    elif isinstance(avg, (int, float)):
+        linhas.append(_insight(f"Satisfação média saudável em {_num(avg)}."))
     return linhas
 
 
@@ -191,6 +230,11 @@ def _secao_cancelamentos(m: dict[str, Any]) -> list[str]:
     if por_produto:
         itens = ", ".join(f"{k} ({v})" for k, v in por_produto.items())
         linhas.append(_linha("Por produto", itens))
+    qtd = int(m.get("cancellations_count") or 0)
+    if qtd:
+        linhas.append(_insight(
+            f"{qtd} cancelamento(s) somando {_moeda(m.get('mrr_impact'))} em MRR — "
+            "acione retenção e investigue o motivo principal."))
     return linhas
 
 
