@@ -654,7 +654,7 @@ def get_settings() -> Settings:
         custom_fields=_carregar_campos_customizados(),
         lead_ignore_names=[
             n.strip().lower()
-            for n in _get_str("SF_IGNORE_LEAD_NAMES", "teste diego").split(",")
+            for n in _get_str("SF_IGNORE_LEAD_NAMES", "teste,test").split(",")
             if n.strip()
         ],
         satisfaction_source=_carregar_fonte_satisfacao(),

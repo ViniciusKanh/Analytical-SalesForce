@@ -272,48 +272,45 @@ def _alertas_tarefas(m: dict[str, Any], risk: RiskSettings) -> list[dict[str, An
 
 
 def _alertas_satisfacao(m: dict[str, Any], risk: RiskSettings) -> list[dict[str, Any]]:
-    """Regras de risco para Satisfação (somente se configurada)."""
+    """Regra de risco ÚNICA para Satisfação (nota, negativas, comentários e queda).
+
+    Tudo que diz respeito à nota/satisfação é consolidado em um único alerta,
+    para não fragmentar (ex.: evitar "nota baixa" + "comentário crítico" separados).
+    """
     if not m.get("configured"):
         return []
-    alertas: list[dict[str, Any]] = []
 
     avg = m.get("avg_score")
-    if isinstance(avg, (int, float)) and avg < risk.satisfaction_min_score:
-        alertas.append(
-            _alerta(
-                "high",
-                "Satisfação",
-                "Nota média abaixo da meta",
-                f"Nota média de satisfação é {avg}, abaixo da meta "
-                f"de {risk.satisfaction_min_score}.",
-                "Acionar o time de CS para tratar os casos negativos.",
-            )
-        )
-
+    negativos = int(m.get("negative_count") or 0)
     comentarios = m.get("critical_comments") or []
-    if comentarios:
-        alertas.append(
-            _alerta(
-                "high",
-                "Satisfação",
-                f"{len(comentarios)} comentário(s) crítico(s)",
-                "Há comentários negativos relevantes registrados no período.",
-                "Revisar os comentários críticos e contatar os clientes afetados.",
-            )
-        )
-
     var_7d = _var_percent_7dias(m, "avg_score")
-    if var_7d is not None and var_7d < 0:
-        alertas.append(
-            _alerta(
-                "medium",
-                "Satisfação",
-                "Satisfação em queda",
-                f"Nota média está {abs(var_7d):.1f}% abaixo da média dos últimos 7 dias.",
-                "Monitorar tendência e identificar a causa da redução.",
-            )
+
+    nota_baixa = isinstance(avg, (int, float)) and avg < risk.satisfaction_min_score
+    caindo = var_7d is not None and var_7d < 0
+    if not (nota_baixa or negativos or comentarios or caindo):
+        return []
+
+    partes: list[str] = []
+    if nota_baixa:
+        partes.append(f"nota média {avg} abaixo da meta ({risk.satisfaction_min_score})")
+    if negativos:
+        partes.append(f"{negativos} avaliação(ões) negativa(s)")
+    if comentarios:
+        partes.append(f"{len(comentarios)} comentário(s) crítico(s)")
+    if caindo:
+        partes.append(f"queda de {abs(var_7d):.1f}% vs média de 7 dias")
+
+    severidade = "high" if (nota_baixa or comentarios) else "medium"
+    return [
+        _alerta(
+            severidade,
+            "Satisfação",
+            "Satisfação em risco",
+            "Pontos de atenção em satisfação: " + "; ".join(partes) + ".",
+            "Acionar o CS: contatar os clientes negativos e revisar os "
+            "comentários críticos do dia.",
         )
-    return alertas
+    ]
 
 
 def _alertas_cancelamento(m: dict[str, Any], risk: RiskSettings) -> list[dict[str, Any]]:

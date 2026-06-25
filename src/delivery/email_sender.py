@@ -9,6 +9,7 @@ retorna ``False``.
 from __future__ import annotations
 
 import base64
+import re
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -71,6 +72,57 @@ def _escape(texto: Any) -> str:
         .replace(">", "&gt;")
         .replace('"', "&quot;")
     )
+
+
+def _md_inline(texto: str) -> str:
+    """Converte marcações inline básicas (negrito) em HTML, com escape."""
+    return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", _escape(texto))
+
+
+def _md_para_html(texto: str) -> str:
+    """Converte um trecho Markdown simples em HTML (para o e-mail).
+
+    Trata títulos (``#``..``###``), negrito (``**``), listas (``-``/``*``) e
+    parágrafos — evitando que marcações apareçam cruas (ex.: ``### Resumo``).
+    """
+    html: list[str] = []
+    bullets: list[str] = []
+
+    def _flush() -> None:
+        if bullets:
+            itens = "".join(
+                f"<li style='margin-bottom:4px'>{b}</li>" for b in bullets
+            )
+            html.append(
+                f"<ul style='margin:4px 0 10px;padding-left:18px;font-size:14px;"
+                f"line-height:1.55;color:#334155'>{itens}</ul>"
+            )
+            bullets.clear()
+
+    for bruto in (texto or "").split("\n"):
+        linha = bruto.strip()
+        if not linha:
+            continue
+        sem_hash = linha.lstrip("#").strip()
+        # Ignora um eventual cabeçalho "Resumo Executivo" repetido.
+        if sem_hash.lower() in ("resumo executivo", "1. resumo executivo"):
+            continue
+        if linha.startswith("#"):
+            _flush()
+            html.append(
+                f"<div style='font-weight:700;color:#0f172a;margin:10px 0 4px;"
+                f"font-size:14px'>{_md_inline(sem_hash)}</div>"
+            )
+        elif linha[:2] in ("- ", "* ") or linha.startswith("•"):
+            bullets.append(_md_inline(linha.lstrip("-*• ").strip()))
+        else:
+            _flush()
+            html.append(
+                f"<p style='margin:0 0 10px;font-size:14px;line-height:1.6;"
+                f"color:#334155'>{_md_inline(linha)}</p>"
+            )
+    _flush()
+    return "".join(html)
 
 
 # ----------------------------------------------------------------------
@@ -199,17 +251,16 @@ def _montar_html(
         f"Foram gerados <strong>{len(alerts)} alerta(s)</strong>, "
         f"sendo <strong>{altos} de severidade alta</strong>."
     )
-    # Bloco de análise da IA (insights), quando houver.
+    # Bloco de análise (insights) — converte o Markdown do resumo em HTML.
     bloco_ia = ""
-    if resumo_ia.strip():
-        texto_ia = _escape(resumo_ia).replace("\n\n", "</p><p style='margin:0 0 10px'>")
-        texto_ia = texto_ia.replace("\n", "<br>")
+    corpo_ia = _md_para_html(resumo_ia) if resumo_ia.strip() else ""
+    if corpo_ia:
         bloco_ia = (
-            "<div style='background:#eef4ff;border:1px solid #dbe5fb;border-radius:10px;"
-            "padding:14px 16px;margin:0 0 18px;'>"
+            "<div style='background:#eef4ff;border:1px solid #dbe5fb;border-left:4px solid #1f4fb2;"
+            "border-radius:10px;padding:14px 16px;margin:0 0 18px;'>"
             "<div style='font-size:12px;color:#1f4fb2;font-weight:700;text-transform:uppercase;"
-            "letter-spacing:.04em;margin-bottom:6px;'>🤖 Análise da IA</div>"
-            f"<p style='margin:0 0 10px;font-size:14px;color:#0f172a;line-height:1.55;'>{texto_ia}</p>"
+            "letter-spacing:.04em;margin-bottom:8px;'>🧠 Análise do dia</div>"
+            f"{corpo_ia}"
             "</div>"
         )
     return f"""\
@@ -218,23 +269,23 @@ def _montar_html(
          style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:12px;
                 overflow:hidden;border:1px solid #e2e8f0;">
     <tr>
-      <td style="background:#1f4fb2;padding:22px 28px;">
-        <div style="color:#ffffff;font-size:20px;font-weight:700;">Analytical-Force</div>
-        <div style="color:#c7d2fe;font-size:13px;margin-top:2px;">
-          Relatório diário de performance comercial — {_escape(report_date)}
-        </div>
+      <td style="background:linear-gradient(120deg,#0b3d91,#1f4fb2 58%,#3b82f6);padding:26px 28px;">
+        <div style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:.2px;">📊 Analytical-Force</div>
+        <div style="color:#dbe4ff;font-size:13px;margin-top:4px;">Relatório diário de performance comercial</div>
+        <span style="display:inline-block;margin-top:12px;background:rgba(255,255,255,.18);color:#ffffff;
+              font-size:12px;font-weight:600;padding:5px 12px;border-radius:999px;">📅 {_escape(report_date)}</span>
       </td>
     </tr>
     <tr>
       <td style="padding:24px 28px;">
-        <h3 style="font-size:15px;color:#0f172a;margin:0 0 8px;">📌 Resumo executivo</h3>
-        <p style="font-size:14px;color:#475569;margin:0 0 14px;line-height:1.5;">{resumo}</p>
+        <h3 style="font-size:14px;color:#0f172a;margin:0 0 10px;padding-left:10px;border-left:3px solid #1f4fb2;">Resumo executivo</h3>
+        <p style="font-size:14px;color:#475569;margin:0 0 14px;line-height:1.55;">{resumo}</p>
         {bloco_ia}
 
-        <h3 style="font-size:15px;color:#0f172a;margin:0 0 10px;">📊 Números-chave</h3>
+        <h3 style="font-size:14px;color:#0f172a;margin:22px 0 10px;padding-left:10px;border-left:3px solid #1f4fb2;">Números-chave</h3>
         {_grade_kpis(metrics)}
 
-        <h3 style="font-size:15px;color:#0f172a;margin:22px 0 8px;">🚨 Principais alertas</h3>
+        <h3 style="font-size:14px;color:#0f172a;margin:22px 0 10px;padding-left:10px;border-left:3px solid #dc2626;">Principais alertas</h3>
         {_bloco_alertas(alerts)}
 
         {_bloco_prioridades(alerts)}

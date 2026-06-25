@@ -11,6 +11,7 @@ e retornam sem efeito colateral.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 import requests
@@ -230,6 +231,10 @@ def criar_tarefas_de_alertas(
     if assignees:
         logger.info("Tarefas do ClickUp serão atribuídas ao responsável configurado.")
 
+    # Tags fixas + data de início = hoje (ClickUp usa epoch em milissegundos).
+    tags = ["salesforce", "dados"]
+    inicio_ms = int(datetime.now().timestamp() * 1000)
+
     for alerta in criticos:
         severidade = alerta.get("severity", "high")
         markdown = _descricao_markdown(alerta, instance_url, report_date)
@@ -240,6 +245,8 @@ def criar_tarefas_de_alertas(
             "description": str(alerta.get("description") or alerta.get("title", "")),
             "markdown_content": markdown,
             "priority": _PRIORIDADE_SEVERIDADE.get(severidade, 1),
+            "tags": tags,
+            "start_date": inicio_ms,
         }
         if assignees:
             corpo["assignees"] = assignees

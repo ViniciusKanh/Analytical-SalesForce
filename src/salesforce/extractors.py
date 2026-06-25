@@ -71,11 +71,16 @@ class SalesforceExtractor:
         self._ignore_lead_names = [n for n in (ignore_lead_names or []) if n]
 
     def _filtrar_leads_ignorados(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Remove leads de teste (nome contém algum trecho configurado p/ ignorar)."""
+        """Remove leads de teste cujo nome COMEÇA com algum trecho configurado.
+
+        Ex.: ``teste``/``test`` removem "Teste Diego", "Test ...", etc.
+        """
         if df.empty or not self._ignore_lead_names or "Name" not in df.columns:
             return df
-        nomes = df["Name"].astype(str).str.lower()
-        manter = ~nomes.apply(lambda n: any(t in n for t in self._ignore_lead_names))
+        nomes = df["Name"].astype(str).str.strip().str.lower()
+        manter = ~nomes.apply(
+            lambda n: any(n.startswith(t) for t in self._ignore_lead_names)
+        )
         removidos = int((~manter).sum())
         if removidos:
             logger.info("Leads de teste ignorados: %d.", removidos)
