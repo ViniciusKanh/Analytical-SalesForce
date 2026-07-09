@@ -123,6 +123,8 @@ relatório). Opera <strong>somente leitura</strong> no Salesforce.</p>
 <li><code>POST /run</code> — executa o pipeline (corpo JSON)</li>
 <li><code>GET /run?date=YYYY-MM-DD</code> — executa pelo navegador (mais fácil)</li>
 <li><code>GET /metrics/{data}</code> — lê as métricas já salvas (rápido, sem reexecutar)</li>
+<li><code>GET /consulta/busca?termo=...</code> — busca de contas/oportunidades/contratos/itens</li>
+<li><code>GET /consulta/objeto/{tipo}/{id}</code> — detalhe completo de um registro</li>
 <li><a href="/docs">/docs</a> — documentação interativa (Swagger)</li>
 </ul>
 <p>Se <code>APP_API_TOKEN</code> estiver definido, envie o cabeçalho
@@ -430,6 +432,90 @@ def metrics_do_dia(
     except Exception as exc:
         raise HTTPException(
             status_code=502, detail=f"Falha ao ler métricas: {type(exc).__name__}: {exc}"
+        )
+
+
+# ----------------------------------------------------------------------
+# Consulta (busca híbrida) — Contas, Oportunidades, Contratos, Itens.
+# ----------------------------------------------------------------------
+@app.get("/consulta/tipos")
+def consulta_tipos(
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+) -> dict[str, Any]:
+    """Lista os tipos de busca disponíveis e o estado da configuração."""
+    _exigir_token(x_api_key)
+    from src.query.search_service import status_tipos
+
+    return status_tipos(get_settings())
+
+
+@app.get("/consulta/busca")
+def consulta_busca(
+    termo: str,
+    tipos: str | None = None,
+    limite: int = 20,
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+) -> dict[str, Any]:
+    """Busca híbrida (cache no Turso + fallback ao vivo no Salesforce).
+
+    Args:
+        termo: Texto buscado (mínimo 2 caracteres).
+        tipos: Lista separada por vírgula (ex.: ``conta,contrato``). Vazio = todos.
+        limite: Máximo de resultados por tipo (padrão 20).
+    """
+    _exigir_token(x_api_key)
+    from src.database.turso_client import get_turso_client
+    from src.query.search_service import TIPOS_VALIDOS, buscar
+    from src.salesforce.client import get_salesforce_client
+
+    lista_tipos = [t.strip() for t in tipos.split(",") if t.strip()] if tipos else None
+    if lista_tipos:
+        invalidos = [t for t in lista_tipos if t not in TIPOS_VALIDOS]
+        if invalidos:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tipo(s) inválido(s): {invalidos}. Use: {list(TIPOS_VALIDOS)}.",
+            )
+
+    settings = get_settings()
+    try:
+        sf_client = get_salesforce_client(settings)
+        sf_client.connect()
+        resultados = buscar(settings, get_turso_client(), sf_client, termo, lista_tipos, limite)
+        return {"termo": termo, "resultados": resultados}
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"Falha na busca: {type(exc).__name__}: {exc}"
+        )
+
+
+@app.get("/consulta/objeto/{tipo}/{record_id}")
+def consulta_detalhe(
+    tipo: str,
+    record_id: str,
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+) -> dict[str, Any]:
+    """Detalhe completo de um registro (Conta, Oportunidade, Contrato ou Item)."""
+    _exigir_token(x_api_key)
+    from src.database.turso_client import get_turso_client
+    from src.query.search_service import TIPOS_VALIDOS, detalhar
+    from src.salesforce.client import get_salesforce_client
+
+    if tipo not in TIPOS_VALIDOS:
+        raise HTTPException(
+            status_code=400, detail=f"Tipo inválido: {tipo!r}. Use: {list(TIPOS_VALIDOS)}."
+        )
+
+    settings = get_settings()
+    try:
+        sf_client = get_salesforce_client(settings)
+        sf_client.connect()
+        return detalhar(settings, get_turso_client(), sf_client, tipo, record_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"Falha ao obter detalhe: {type(exc).__name__}: {exc}"
         )
 
 

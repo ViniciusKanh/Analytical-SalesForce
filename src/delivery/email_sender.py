@@ -22,8 +22,31 @@ from ..utils.logger import get_logger
 
 logger = get_logger("delivery.email")
 
+# ----------------------------------------------------------------------
+# Identidade visual (Penso) — paleta oficial da marca.
+# ----------------------------------------------------------------------
+# Cores "vivas" (uso em fundos/selos) e variantes escurecidas para texto
+# sobre fundo branco (mantém contraste de leitura sem perder a identidade).
+_PENSO_BLUE = "#0018FF"
+_BLUE_TECH = "#0004DD"
+_PENSO_BLACK = "#171717"
+_BLACK_INTENSE = "#060606"
+_SUCESSO = "#16C79A"
+_SUCESSO_TXT = "#0d8a6d"
+_ERRO = "#F05454"
+_ERRO_TXT = "#c62f2f"
+_ALERTA = "#FFC453"
+_ALERTA_TXT = "#a15c00"
+_DIVISORIA = "#E6EAEE"
+_HOVER = "#F7F8FA"
+
+# Logo do Salesforce (fonte de dados) — mesma URL pública já usada no painel React.
+_LOGO_SALESFORCE_URL = "https://upload.wikimedia.org/wikipedia/commons/f/f9/Salesforce.com_logo.svg"
+
 # Cores por severidade (usadas em selos/badges no e-mail HTML).
-_COR_SEVERIDADE = {"high": "#c0392b", "medium": "#e67e22", "low": "#f1c40f"}
+_COR_SEVERIDADE = {"high": _ERRO, "medium": _ALERTA, "low": "#94a3b8"}
+# Texto do selo: escuro sobre o Alerta (amarelo) para manter contraste; branco nos demais.
+_TEXTO_SEVERIDADE = {"high": "#ffffff", "medium": _PENSO_BLACK, "low": "#ffffff"}
 _ROTULO_SEVERIDADE = {"high": "ALTA", "medium": "MÉDIA", "low": "BAIXA"}
 
 
@@ -128,7 +151,7 @@ def _md_para_html(texto: str) -> str:
 # ----------------------------------------------------------------------
 # Blocos do e-mail HTML
 # ----------------------------------------------------------------------
-def _linha_kpi(rotulo: str, valor: str, destaque: str = "#1f4fb2") -> str:
+def _linha_kpi(rotulo: str, valor: str, destaque: str = _PENSO_BLUE) -> str:
     """Célula de KPI (rótulo + valor) para a grade de números-chave."""
     return (
         '<td style="padding:10px 14px;border:1px solid #e6e8eb;'
@@ -155,16 +178,16 @@ def _grade_kpis(metrics: dict[str, Any]) -> str:
             "Pipeline aberto",
             _moeda(opp.get("open_pipeline_product_value") or opp.get("open_pipeline_amount")),
         ),
-        _linha_kpi("Oportunidades ganhas", _num(opp.get("won_opportunities")), "#15803d"),
-        _linha_kpi("Oportunidades perdidas", _num(opp.get("lost_opportunities")), "#b91c1c"),
-        _linha_kpi("Oportunidades paradas", _num(opp.get("stalled_opportunities")), "#b45309"),
-        _linha_kpi("Tarefas vencidas", _num(tasks.get("tasks_overdue")), "#b45309"),
+        _linha_kpi("Oportunidades ganhas", _num(opp.get("won_opportunities")), _SUCESSO_TXT),
+        _linha_kpi("Oportunidades perdidas", _num(opp.get("lost_opportunities")), _ERRO_TXT),
+        _linha_kpi("Oportunidades paradas", _num(opp.get("stalled_opportunities")), _ALERTA_TXT),
+        _linha_kpi("Tarefas vencidas", _num(tasks.get("tasks_overdue")), _ALERTA_TXT),
     ]
     if sat.get("configured") and sat.get("responses"):
         celulas.append(_linha_kpi("Satisfação (nota média)", _num(sat.get("avg_score"))))
     if canc.get("configured") and canc.get("cancellations_count"):
         celulas.append(
-            _linha_kpi("Cancelamentos", _num(canc.get("cancellations_count")), "#b91c1c")
+            _linha_kpi("Cancelamentos", _num(canc.get("cancellations_count")), _ERRO_TXT)
         )
 
     # Distribui as células em linhas de 3 colunas.
@@ -199,6 +222,7 @@ def _bloco_alertas(alerts: list[dict[str, Any]]) -> str:
     for a in selecionados:
         sev = a.get("severity", "low")
         cor = _COR_SEVERIDADE.get(sev, "#94a3b8")
+        cor_texto_selo = _TEXTO_SEVERIDADE.get(sev, "#ffffff")
         rotulo = _ROTULO_SEVERIDADE.get(sev, "INFO")
         acao = a.get("recommended_action")
         acao_html = (
@@ -208,9 +232,9 @@ def _bloco_alertas(alerts: list[dict[str, Any]]) -> str:
             else ""
         )
         cartoes.append(
-            f'<div style="border-left:4px solid {cor};background:#f8fafc;'
+            f'<div style="border-left:4px solid {cor};background:{_HOVER};'
             f'padding:10px 14px;margin-bottom:10px;border-radius:0 8px 8px 0;">'
-            f'<span style="display:inline-block;background:{cor};color:#fff;'
+            f'<span style="display:inline-block;background:{cor};color:{cor_texto_selo};'
             f'font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;'
             f'letter-spacing:.04em;">{rotulo}</span> '
             f'<span style="font-weight:700;color:#0f172a;font-size:14px;">'
@@ -256,36 +280,59 @@ def _montar_html(
     corpo_ia = _md_para_html(resumo_ia) if resumo_ia.strip() else ""
     if corpo_ia:
         bloco_ia = (
-            "<div style='background:#eef4ff;border:1px solid #dbe5fb;border-left:4px solid #1f4fb2;"
+            f"<div style='background:{_HOVER};border:1px solid {_DIVISORIA};border-left:4px solid {_PENSO_BLUE};"
             "border-radius:10px;padding:14px 16px;margin:0 0 18px;'>"
-            "<div style='font-size:12px;color:#1f4fb2;font-weight:700;text-transform:uppercase;"
+            f"<div style='font-size:12px;color:{_PENSO_BLUE};font-weight:700;text-transform:uppercase;"
             "letter-spacing:.04em;margin-bottom:8px;'>🧠 Análise do dia</div>"
             f"{corpo_ia}"
             "</div>"
         )
+    # Cabeçalho: identidade visual da Penso (marca-texto) + Analytical-Force.
+    # TODO: quando o arquivo do logo real da Penso estiver disponível, trocar
+    # este bloco por um <img> com o PNG/SVG oficial (base64 ou hospedado).
+    # Por ora, usa apenas cores da marca (Penso Blue/Black) — sem inventar formas.
+    cabecalho = f"""\
+      <td style="background:linear-gradient(120deg,{_BLACK_INTENSE},{_BLUE_TECH} 55%,{_PENSO_BLUE});padding:26px 28px;">
+        <table role="presentation" cellspacing="0" cellpadding="0"><tr>
+          <td style="width:34px;height:34px;background:#ffffff;border-radius:9px;text-align:center;
+                     vertical-align:middle;font-weight:800;font-size:16px;color:{_PENSO_BLUE};">P</td>
+          <td style="padding-left:10px;color:#ffffff;font-size:13px;font-weight:700;letter-spacing:.03em;">PENSO</td>
+        </tr></table>
+        <div style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:.2px;margin-top:12px;">📊 Analytical-Force</div>
+        <div style="color:#dbe4ff;font-size:13px;margin-top:4px;">Relatório diário de performance comercial</div>
+        <span style="display:inline-block;margin-top:12px;background:rgba(255,255,255,.18);color:#ffffff;
+              font-size:12px;font-weight:600;padding:5px 12px;border-radius:999px;">📅 {_escape(report_date)}</span>
+      </td>"""
+    rodape = f"""\
+      <td style="background:{_HOVER};padding:16px 28px;border-top:1px solid {_DIVISORIA};">
+        <table role="presentation" cellspacing="0" cellpadding="0"><tr>
+          <td style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;padding-right:8px;">Fonte de dados</td>
+          <td><img src="{_LOGO_SALESFORCE_URL}" alt="Salesforce" style="height:14px;vertical-align:middle;" /></td>
+        </tr></table>
+        <div style="font-size:12px;color:#94a3b8;margin-top:10px;">
+          Relatório gerado automaticamente pelo agente <strong>Analytical-Force</strong> (Penso).
+          Os números são calculados em Python a partir do Salesforce; a interpretação
+          é gerada por modelo local. O relatório completo está anexado/registrado no sistema.
+        </div>
+      </td>"""
     return f"""\
 <div style="background:#f1f5f9;padding:24px 0;font-family:Arial,Helvetica,sans-serif;">
   <table role="presentation" width="640" align="center" cellspacing="0" cellpadding="0"
          style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:12px;
-                overflow:hidden;border:1px solid #e2e8f0;">
+                overflow:hidden;border:1px solid {_DIVISORIA};">
     <tr>
-      <td style="background:linear-gradient(120deg,#0b3d91,#1f4fb2 58%,#3b82f6);padding:26px 28px;">
-        <div style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:.2px;">📊 Analytical-Force</div>
-        <div style="color:#dbe4ff;font-size:13px;margin-top:4px;">Relatório diário de performance comercial</div>
-        <span style="display:inline-block;margin-top:12px;background:rgba(255,255,255,.18);color:#ffffff;
-              font-size:12px;font-weight:600;padding:5px 12px;border-radius:999px;">📅 {_escape(report_date)}</span>
-      </td>
+{cabecalho}
     </tr>
     <tr>
       <td style="padding:24px 28px;">
-        <h3 style="font-size:14px;color:#0f172a;margin:0 0 10px;padding-left:10px;border-left:3px solid #1f4fb2;">Resumo executivo</h3>
+        <h3 style="font-size:14px;color:#0f172a;margin:0 0 10px;padding-left:10px;border-left:3px solid {_PENSO_BLUE};">Resumo executivo</h3>
         <p style="font-size:14px;color:#475569;margin:0 0 14px;line-height:1.55;">{resumo}</p>
         {bloco_ia}
 
-        <h3 style="font-size:14px;color:#0f172a;margin:22px 0 10px;padding-left:10px;border-left:3px solid #1f4fb2;">Números-chave</h3>
+        <h3 style="font-size:14px;color:#0f172a;margin:22px 0 10px;padding-left:10px;border-left:3px solid {_PENSO_BLUE};">Números-chave</h3>
         {_grade_kpis(metrics)}
 
-        <h3 style="font-size:14px;color:#0f172a;margin:22px 0 10px;padding-left:10px;border-left:3px solid #dc2626;">Principais alertas</h3>
+        <h3 style="font-size:14px;color:#0f172a;margin:22px 0 10px;padding-left:10px;border-left:3px solid {_ERRO};">Principais alertas</h3>
         {_bloco_alertas(alerts)}
 
         {_bloco_prioridades(alerts)}
@@ -294,13 +341,7 @@ def _montar_html(
       </td>
     </tr>
     <tr>
-      <td style="background:#f8fafc;padding:16px 28px;border-top:1px solid #e2e8f0;">
-        <div style="font-size:12px;color:#94a3b8;">
-          Relatório gerado automaticamente pelo agente <strong>Analytical-Force</strong>.
-          Os números são calculados em Python a partir do Salesforce; a interpretação
-          é gerada por modelo local. O relatório completo está anexado/registrado no sistema.
-        </div>
-      </td>
+{rodape}
     </tr>
   </table>
 </div>"""
@@ -369,6 +410,7 @@ _ROTULO_DESTAQUE = {
     "leads_sem_tarefa": "⏳ Leads sem 1ª tarefa",
     "oportunidades_travadas": "🚧 Oportunidades travadas",
     "oportunidades_ganhas": "🏆 Oportunidades ganhas",
+    "oportunidades_perdidas": "📉 Oportunidades perdidas",
     "cancelamentos": "❌ Cancelamentos",
     "satisfacoes_piores": "😟 Piores satisfações",
 }

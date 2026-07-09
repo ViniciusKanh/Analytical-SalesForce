@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export default function RunModal({ aberto, onFechar, onExecutar, executando, segundos }) {
+export default function RunModal({ aberto, onFechar, onExecutar, executando, segundos, erro }) {
   const [data, setData] = useState("");
   const [enviarEmail, setEnviarEmail] = useState(false);
   const [criarClickup, setCriarClickup] = useState(false);
@@ -37,6 +37,11 @@ export default function RunModal({ aberto, onFechar, onExecutar, executando, seg
           <div>
             <div style={{ fontSize: 13, color: "var(--muted)" }}>Executando… {segundos}s</div>
             <div className="bar"></div>
+          </div>
+        )}
+        {!executando && erro && (
+          <div className="err" style={{ marginTop: 12, fontSize: 13 }}>
+            ⚠️ {erro}
           </div>
         )}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 9, marginTop: 8 }}>

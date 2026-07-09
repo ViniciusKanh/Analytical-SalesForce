@@ -108,6 +108,23 @@ _DDL: list[str] = [
         updated_at TEXT
     );
     """,
+    # 9.8 — Cache de busca (mirror somente leitura para o módulo de Consulta).
+    # Guarda um "espelho" de Account/Opportunity/Contrato/Item de Contrato,
+    # sincronizado incrementalmente pelo pipeline diário. É a camada RÁPIDA
+    # da busca híbrida; quando não encontra ou o dado precisa estar fresco,
+    # a consulta cai para o Salesforce ao vivo (ver src/query/search_service.py).
+    """
+    CREATE TABLE IF NOT EXISTS search_cache (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        object_name TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        display_name TEXT,
+        subtitle TEXT,
+        payload_json TEXT NOT NULL,
+        synced_at TEXT NOT NULL,
+        UNIQUE(object_name, record_id)
+    );
+    """,
 ]
 
 # Índices para acelerar buscas históricas (comparação dia anterior / 7 dias).
@@ -122,6 +139,8 @@ _INDICES: list[str] = [
     "ON salesforce_snapshots (snapshot_date, object_name);",
     "CREATE INDEX IF NOT EXISTS idx_agent_runs_date "
     "ON agent_runs (run_date, status);",
+    "CREATE INDEX IF NOT EXISTS idx_search_cache_lookup "
+    "ON search_cache (object_name, display_name);",
 ]
 
 

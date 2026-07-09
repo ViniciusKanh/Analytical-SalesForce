@@ -5,6 +5,7 @@ const ITENS = [
   { v: "tarefas", i: "✅", t: "Tarefas" },
   { v: "satisfacao", i: "😊", t: "Satisfação" },
   { v: "cancelamentos", i: "❌", t: "Cancelamentos" },
+  { v: "busca", i: "🔎", t: "Consulta" },
   { v: "alertas", i: "🚨", t: "Alertas" },
   { v: "tendencias", i: "📈", t: "Tendências" },
   { v: "relatorio", i: "📄", t: "Relatório" },
@@ -15,10 +16,11 @@ export default function Sidebar({ view, onNavigate, aberta }) {
   return (
     <aside className={"sidebar" + (aberta ? " open" : "")}>
       <div className="sb-brand">
-        <div className="logo">📊</div>
+        {/* TODO: substituir pelo arquivo real da logo Penso (aguardando upload como anexo). */}
+        <div className="logo penso-logo">P</div>
         <div>
           <h1>Analytical-Force</h1>
-          <div className="s">Diagnóstico comercial</div>
+          <div className="s">Penso · Diagnóstico comercial</div>
         </div>
       </div>
       <nav>

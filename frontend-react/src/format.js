@@ -24,3 +24,32 @@ export function extrairResumo(md) {
   const m = (md || "").split(/##\s+/).find((s) => /resumo executivo/i.test(s.split("\n")[0]));
   return m ? m.split("\n").slice(1).join("\n").trim() : "";
 }
+
+/** Escapa HTML básico antes de reinjetar como innerHTML. */
+export function escapeHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/**
+ * Converte negrito Markdown (**texto**) e parágrafos em HTML simples.
+ * Usado só para exibição do resumo já gerado pelo backend — não interpreta
+ * nem recalcula nada, apenas formata o texto que já veio pronto.
+ */
+export function renderResumoHtml(texto) {
+  if (!texto) return "";
+  const paragrafos = texto
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return paragrafos
+    .map((p) => {
+      const comNegrito = escapeHtml(p)
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\n/g, "<br/>");
+      return `<p>${comNegrito}</p>`;
+    })
+    .join("");
+}

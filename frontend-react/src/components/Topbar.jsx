@@ -11,6 +11,7 @@ export default function Topbar({
   tema,
   onAbrirRun,
   onAlternarSidebar,
+  carregando,
 }) {
   return (
     <header className="topbar">
@@ -36,8 +37,8 @@ export default function Topbar({
           </option>
         ))}
       </select>
-      <button className="iconbtn" title="Atualizar" onClick={onRecarregar}>
-        ↻
+      <button className="iconbtn" title="Atualizar" onClick={onRecarregar} disabled={carregando}>
+        <span style={carregando ? { display: "inline-block", animation: "spin .8s linear infinite" } : undefined}>↻</span>
       </button>
       <button className="iconbtn" title="Tema" onClick={onAlternarTema}>
         {tema === "dark" ? "☀️" : "🌙"}

@@ -9,6 +9,7 @@ import Leads from "./views/Leads.jsx";
 import Tasks from "./views/Tasks.jsx";
 import Satisfaction from "./views/Satisfaction.jsx";
 import Cancellations from "./views/Cancellations.jsx";
+import Search from "./views/Search.jsx";
 import Alerts from "./views/Alerts.jsx";
 import Trends from "./views/Trends.jsx";
 import Report from "./views/Report.jsx";
@@ -24,6 +25,8 @@ export default function App() {
   const [online, setOnline] = useState(null);
   const [dias, setDias] = useState([]);
   const [dia, setDia] = useState(null);
+  const [carregandoDia, setCarregandoDia] = useState(false);
+  const [erroDia, setErroDia] = useState(null);
   const [runModalAberto, setRunModalAberto] = useState(false);
   const [executando, setExecutando] = useState(false);
   const [segundos, setSegundos] = useState(0);
@@ -52,11 +55,16 @@ export default function App() {
   const carregarDia = useCallback(
     async (data) => {
       if (!data || data === "—") return;
+      setCarregandoDia(true);
+      setErroDia(null);
       try {
         const d = await buscarDia(data);
         setDia(d);
       } catch (e) {
+        setErroDia({ mensagem: e.message, data });
         notificar("Falha ao carregar o dia: " + e.message, "bad");
+      } finally {
+        setCarregandoDia(false);
       }
     },
     [notificar]
@@ -99,17 +107,22 @@ export default function App() {
     notificar("Atualizando…");
   }
 
+  const [erroExecucao, setErroExecucao] = useState(null);
+
   async function executarAgente(payload) {
     setExecutando(true);
+    setErroExecucao(null);
     setSegundos(0);
     timerRef.current = setInterval(() => setSegundos((s) => s + 1), 1000);
     try {
       const resultado = await rodarAgente(payload);
       setDia(resultado);
+      setErroDia(null);
       notificar("Execução concluída ✓", "ok");
       setRunModalAberto(false);
       carregarDias();
     } catch (e) {
+      setErroExecucao(e.message);
       notificar("Falha: " + e.message, "bad");
     } finally {
       clearInterval(timerRef.current);
@@ -118,10 +131,43 @@ export default function App() {
     }
   }
 
-  function renderView() {
+  function renderConteudo() {
     if (view === "config") return <Config notificar={notificar} onConfigSalva={() => { checarSaude(); carregarDias(); }} />;
     if (view === "tendencias") return <Trends />;
+    if (view === "busca") return <Search notificar={notificar} />;
+
+    if (erroDia && !dia) {
+      return (
+        <div className="card">
+          <div className="errcard">
+            <span className="ic">⚠️</span>
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>Não foi possível carregar {erroDia.data}</div>
+              <div style={{ color: "var(--muted)", fontSize: 13 }}>{erroDia.mensagem}</div>
+              <div className="btns">
+                <button className="btn btn-primary btn-sm" onClick={() => carregarDia(erroDia.data)}>
+                  ↻ Tentar novamente
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     if (!dia) {
+      if (carregandoDia) {
+        return (
+          <div className="card">
+            <div className="skeleton" style={{ height: 22, width: "40%", marginBottom: 14 }}></div>
+            <div className="kpis">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div className="skeleton" key={i} style={{ height: 86, borderRadius: 16 }}></div>
+              ))}
+            </div>
+          </div>
+        );
+      }
       return (
         <div className="card">
           <div className="empty">
@@ -170,8 +216,14 @@ export default function App() {
           tema={tema}
           onAbrirRun={() => setRunModalAberto(true)}
           onAlternarSidebar={() => setSidebarAberta((v) => !v)}
+          carregando={carregandoDia}
         />
-        <main>{renderView()}</main>
+        <main>
+          {carregandoDia && dia && <div className="topload"></div>}
+          <div className="fade-view" key={view + (dia?.date || "")}>
+            {renderConteudo()}
+          </div>
+        </main>
         <div className="integr">
           <span>Integrações</span>
           <img src="https://upload.wikimedia.org/wikipedia/commons/f/f9/Salesforce.com_logo.svg" style={{ height: 16 }} alt="Salesforce" title="Salesforce" />
@@ -184,10 +236,14 @@ export default function App() {
       </div>
       <RunModal
         aberto={runModalAberto}
-        onFechar={() => setRunModalAberto(false)}
+        onFechar={() => {
+          setRunModalAberto(false);
+          setErroExecucao(null);
+        }}
         onExecutar={executarAgente}
         executando={executando}
         segundos={segundos}
+        erro={erroExecucao}
       />
       <Toasts itens={toasts} />
     </div>

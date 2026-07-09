@@ -31,18 +31,21 @@ from ..database.migrations import run_migrations
 from ..database.repositories import (
     AgentRunRepository,
     AlertsRepository,
+    ConfigRepository,
     MetricsRepository,
     ObjectMappingRepository,
     ReportRepository,
+    SearchCacheRepository,
     SnapshotRepository,
 )
 from ..database.turso_client import get_turso_client
 from ..delivery.file_writer import salvar_relatorio_md
 from ..models.model_router import ModelRouter
 from ..models.template_client import gerar_plano_acao
-from ..salesforce.client import SalesforceAuthError, get_salesforce_client
+from ..salesforce.client import SalesforceAuthError, SalesforceClient, get_salesforce_client
 from ..salesforce.extractors import SalesforceExtractor
 from ..salesforce.field_mapping import get_field_mapping
+from ..salesforce.search_sync import sincronizar_cache_busca
 from ..utils.date_utils import agora_tz, para_soql_date
 from ..utils.logger import get_logger
 from .report_generator import gerar_relatorio
@@ -148,7 +151,7 @@ class AnalyticalForceAgent:
             resultado.run_id = run_id
 
             # --- Extração do Salesforce ---
-            extrator = self._montar_extrator(snapshot_repo)
+            extrator, sf_client = self._montar_extrator(snapshot_repo)
             dados = self._extrair(extrator, dia_ref)
 
             # --- Histórico para comparação ---
@@ -207,6 +210,23 @@ class AnalyticalForceAgent:
             caminho = salvar_relatorio_md(markdown, dia_ref)
             resultado.caminho_relatorio = str(caminho)
 
+            # --- Cache de busca (módulo de Consulta) — best-effort ---
+            # Sincroniza Account/Opportunity/Contrato/Item de Contrato de forma
+            # incremental. Nunca deve impedir o sucesso do pipeline principal.
+            try:
+                sync_resultado = sincronizar_cache_busca(
+                    sf_client,
+                    self._settings,
+                    ConfigRepository(turso),
+                    SearchCacheRepository(turso),
+                )
+                logger.info("Cache de busca sincronizado: %s", sync_resultado)
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao sincronizar cache de busca (não bloqueia o pipeline): %s",
+                    type(exc).__name__,
+                )
+
             run_repo.finalizar_execucao(run_id, "success")
             resultado.status = "success"
             logger.info("Execução concluída com sucesso (provider=%s).", provider)
@@ -228,21 +248,29 @@ class AnalyticalForceAgent:
     # ------------------------------------------------------------------
     # Etapas internas
     # ------------------------------------------------------------------
-    def _montar_extrator(self, snapshot_repo: SnapshotRepository) -> SalesforceExtractor:
+    def _montar_extrator(
+        self, snapshot_repo: SnapshotRepository
+    ) -> tuple[SalesforceExtractor, SalesforceClient]:
         """Autentica no Salesforce e devolve o extrator configurado.
 
         Usa o cliente com as configurações do agente. Por padrão, a
         autenticação ocorre via OAuth Refresh Token (somente leitura).
+
+        Returns:
+            Tupla ``(extrator, cliente_sf)`` — o cliente autenticado também é
+            devolvido para ser reaproveitado pela sincronização do cache de
+            busca (evita autenticar duas vezes na mesma execução).
         """
         sf_client = get_salesforce_client(self._settings)
         sf_client.connect()  # valida credenciais cedo (levanta erro controlado)
-        return SalesforceExtractor(
+        extrator = SalesforceExtractor(
             client=sf_client,
             field_mapping=get_field_mapping(),
             timezone=self._tz,
             snapshot_repo=snapshot_repo,
             ignore_lead_names=self._settings.lead_ignore_names,
         )
+        return extrator, sf_client
 
     def _extrair(self, extrator: SalesforceExtractor, dia: date) -> dict[str, pd.DataFrame]:
         """Extrai todos os DataFrames necessários do Salesforce."""
@@ -423,10 +451,22 @@ class AnalyticalForceAgent:
 
         opp_fech = dados.get("opp_fechadas")
         if opp_fech is not None and not opp_fech.empty and "IsWon" in opp_fech.columns:
-            ganhas = opp_fech[opp_fech["IsWon"].fillna(False).astype(bool)]
+            ganha_bool = opp_fech["IsWon"].fillna(False).astype(bool)
+            ganhas = opp_fech[ganha_bool]
             destaques["oportunidades_ganhas"] = [
                 _reg(r.get("Id"), r.get("Name"), self._info_moeda(r.get("Amount")))
                 for _, r in ganhas.head(limite).iterrows()
+            ]
+            # Espelha exatamente a lógica das ganhas, para o lado perdido —
+            # alimenta o e-mail/painel com nomes e links (não só o agregado).
+            perdidas = opp_fech[~ganha_bool]
+            destaques["oportunidades_perdidas"] = [
+                _reg(
+                    r.get("Id"),
+                    r.get("Name"),
+                    self._info_moeda(r.get("Amount")),
+                )
+                for _, r in perdidas.head(limite).iterrows()
             ]
 
         travadas = (metricas.get("opportunities", {}) or {}).get(

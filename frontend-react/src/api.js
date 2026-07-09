@@ -67,3 +67,16 @@ export const adicionarEmailCc = (email) =>
   requisicao("/config/email-cc", { method: "POST", body: JSON.stringify({ email }) });
 export const removerEmailCc = (email) =>
   requisicao("/config/email-cc/" + encodeURIComponent(email), { method: "DELETE" });
+
+// Consulta (busca/detalhe híbrida: cache Turso + Salesforce ao vivo).
+// Somente leitura — espelha os tipos configurados em src/query/search_service.py.
+export const consultaTipos = () => requisicao("/consulta/tipos");
+
+export const consultaBuscar = (termo, tipos, limite = 20) => {
+  const params = new URLSearchParams({ termo, limite: String(limite) });
+  if (tipos && tipos.length) params.set("tipos", tipos.join(","));
+  return requisicao("/consulta/busca?" + params.toString());
+};
+
+export const consultaDetalhar = (tipo, recordId) =>
+  requisicao("/consulta/objeto/" + encodeURIComponent(tipo) + "/" + encodeURIComponent(recordId));

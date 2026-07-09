@@ -546,3 +546,118 @@ class ObjectMappingRepository:
             ),
         )
         logger.info("Mapeamento salvo para domínio %s (objeto=%s).", domain, salesforce_object)
+
+
+# ----------------------------------------------------------------------
+# search_cache
+# ----------------------------------------------------------------------
+class SearchCacheRepository:
+    """Operações sobre a tabela ``search_cache``.
+
+    É a camada RÁPIDA do módulo de Consulta (busca híbrida): um espelho
+    somente leitura de Account/Opportunity/Contrato/Item de Contrato,
+    sincronizado incrementalmente (ver ``src/salesforce/search_sync.py``).
+    Quando a busca não encontra nada aqui (ou o dado precisa estar fresco),
+    o serviço de consulta cai para o Salesforce ao vivo.
+    """
+
+    def __init__(self, client: TursoClient) -> None:
+        self._client = client
+
+    def upsert_registros(
+        self,
+        object_name: str,
+        registros: list[dict[str, Any]],
+        campo_nome: str = "Name",
+        campo_subtitulo: str | None = None,
+    ) -> int:
+        """Insere ou atualiza um lote de registros no cache de busca.
+
+        Args:
+            object_name: Nome da API do objeto (ex.: ``"Account"``).
+            registros: Lista de registros (dicionários vindos do Salesforce,
+                já sem o atributo ``attributes``).
+            campo_nome: Campo usado como nome de exibição (padrão ``Name``).
+            campo_subtitulo: Campo opcional usado como subtítulo (ex.: um
+                valor monetário ou o nome da conta relacionada).
+
+        Returns:
+            Quantidade de registros gravados.
+        """
+        if not registros:
+            return 0
+        agora = _agora_iso()
+        linhas = [
+            (
+                object_name,
+                str(reg.get("Id", "")),
+                str(reg.get(campo_nome) or reg.get("Id") or ""),
+                str(reg.get(campo_subtitulo)) if campo_subtitulo and reg.get(campo_subtitulo) is not None else None,
+                json.dumps(reg, ensure_ascii=False, default=str),
+                agora,
+            )
+            for reg in registros
+            if reg.get("Id")
+        ]
+        if not linhas:
+            return 0
+        self._client.execute_many(
+            """
+            INSERT INTO search_cache
+                (object_name, record_id, display_name, subtitle, payload_json, synced_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(object_name, record_id) DO UPDATE SET
+                display_name = excluded.display_name,
+                subtitle = excluded.subtitle,
+                payload_json = excluded.payload_json,
+                synced_at = excluded.synced_at
+            """,
+            linhas,
+        )
+        logger.info("Cache de busca atualizado: %d registro(s) de %s.", len(linhas), object_name)
+        return len(linhas)
+
+    def buscar(self, object_name: str, termo: str, limite: int = 20) -> list[dict[str, Any]]:
+        """Busca no cache por trecho do nome de exibição (case-insensitive).
+
+        Returns:
+            Lista de dicionários ``{id, name, subtitle}`` (sem o payload
+            completo — use :meth:`buscar_por_id` para o detalhe).
+        """
+        termo_like = f"%{termo.strip()}%"
+        linhas = self._client.fetch_all(
+            """
+            SELECT record_id, display_name, subtitle
+              FROM search_cache
+             WHERE object_name = ? AND display_name LIKE ? COLLATE NOCASE
+             ORDER BY display_name
+             LIMIT ?
+            """,
+            (object_name, termo_like, int(limite)),
+        )
+        return [
+            {"id": l["record_id"], "name": l["display_name"], "subtitle": l.get("subtitle")}
+            for l in linhas
+        ]
+
+    def buscar_por_id(self, object_name: str, record_id: str) -> dict[str, Any] | None:
+        """Retorna o payload completo cacheado de um registro (ou None)."""
+        linha = self._client.fetch_one(
+            "SELECT payload_json, synced_at FROM search_cache WHERE object_name = ? AND record_id = ?",
+            (object_name, record_id),
+        )
+        if not linha:
+            return None
+        try:
+            payload = json.loads(linha["payload_json"])
+        except (json.JSONDecodeError, TypeError):
+            return None
+        return {"payload": payload, "synced_at": linha.get("synced_at")}
+
+    def contar(self, object_name: str) -> int:
+        """Quantidade de registros cacheados de um objeto."""
+        linha = self._client.fetch_one(
+            "SELECT COUNT(*) AS total FROM search_cache WHERE object_name = ?",
+            (object_name,),
+        )
+        return int(linha["total"]) if linha else 0

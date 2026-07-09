@@ -1,34 +1,37 @@
 :root{
-  --c1:#6366f1;--c2:#8b5cf6;--c3:#ec4899;
-  --bg:#f5f6fb;--surface:#ffffff;--surface2:#f7f8fd;--line:#eceef5;
-  --txt:#1e2440;--muted:#6b7280;--faint:#9aa3b2;
-  --ok:#16a34a;--high:#ef4444;--med:#f59e0b;--low:#eab308;
-  --blue:#2563eb;--green:#16a34a;--red:#e11d48;--amber:#d97706;--violet:#7c3aed;--teal:#0d9488;
-  --radius:18px;--shadow:0 10px 28px rgba(40,40,90,.08);--shadow-lg:0 26px 60px rgba(40,40,90,.22);--sb:248px;
+  /* Paleta Penso (02 - Cores.pdf): Blue #0018FF, Blue Tech #0004DD, Black Intense #060606. */
+  --c1:#0018FF;--c2:#0004DD;--c3:#FFC453;
+  --bg:#f5f6fb;--surface:#ffffff;--surface2:#F7F8FA;--line:#E6EAEE;
+  --txt:#171717;--muted:#6b7280;--faint:#9aa3b2;
+  --ok:#16C79A;--high:#F05454;--med:#FFC453;--low:#eab308;
+  --blue:#0018FF;--green:#16C79A;--red:#F05454;--amber:#FFC453;--violet:#0004DD;--teal:#16C79A;
+  --penso-blue:#0018FF;--penso-bluetech:#0004DD;--penso-black:#171717;--penso-blackx:#060606;
+  --radius:18px;--shadow:0 10px 28px rgba(6,6,6,.08);--shadow-lg:0 26px 60px rgba(6,6,6,.22);--sb:248px;
 }
-[data-theme="dark"]{--bg:#0e1020;--surface:#171a2e;--surface2:#1c2138;--line:#272c47;--txt:#e8eaf5;--muted:#9aa3c0;--faint:#6c7595;
+[data-theme="dark"]{--bg:#0b0b0f;--surface:#141520;--surface2:#191b28;--line:#272c47;--txt:#e8eaf5;--muted:#9aa3c0;--faint:#6c7595;
   --shadow:0 10px 28px rgba(0,0,0,.45);--shadow-lg:0 26px 60px rgba(0,0,0,.6)}
 *{box-sizing:border-box}
 body{margin:0;font-family:'Segoe UI',system-ui,-apple-system,Arial,sans-serif;color:var(--txt);
-  background:radial-gradient(1200px 500px at 100% -10%,rgba(139,92,246,.10),transparent),
-             radial-gradient(900px 400px at -10% 0%,rgba(236,72,153,.08),transparent),var(--bg);
+  background:radial-gradient(1200px 500px at 100% -10%,rgba(0,24,255,.08),transparent),
+             radial-gradient(900px 400px at -10% 0%,rgba(255,196,83,.07),transparent),var(--bg);
   min-height:100vh}
 a{color:var(--c1)}
 .app{display:flex;min-height:100vh}
-.sidebar{width:var(--sb);background:linear-gradient(170deg,#6366f1 0%,#7c3aed 52%,#c026d3 120%);color:#fff;position:fixed;inset:0 auto 0 0;
+.sidebar{width:var(--sb);background:linear-gradient(170deg,#060606 0%,#0004DD 55%,#0018FF 120%);color:#fff;position:fixed;inset:0 auto 0 0;
   display:flex;flex-direction:column;padding:16px 12px;z-index:40;transition:transform .25s}
 .sb-brand{display:flex;align-items:center;gap:11px;padding:6px 10px 16px;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,.18)}
 .sb-brand .logo{width:40px;height:40px;border-radius:13px;background:rgba(255,255,255,.22);display:grid;place-items:center;font-size:20px}
-.sb-brand h1{font-size:15px;margin:0;font-weight:800;letter-spacing:.2px} .sb-brand .s{font-size:11px;color:#ece6ff}
+.sb-brand .penso-logo{background:#fff;color:#0018FF;font-weight:900;font-size:20px;font-family:Arial,sans-serif}
+.sb-brand h1{font-size:15px;margin:0;font-weight:800;letter-spacing:.2px} .sb-brand .s{font-size:11px;color:#CEE2FF}
 nav{display:flex;flex-direction:column;gap:3px;overflow:auto;margin-top:6px}
-nav a{display:flex;align-items:center;gap:12px;color:#f0ecff;text-decoration:none;padding:10px 12px;border-radius:12px;
+nav a{display:flex;align-items:center;gap:12px;color:#EAF0FF;text-decoration:none;padding:10px 12px;border-radius:12px;
   font-size:13.5px;font-weight:600;cursor:pointer;transition:.18s}
 nav a .i{width:22px;text-align:center;font-size:16px}
 nav a:hover{background:rgba(255,255,255,.14);color:#fff;transform:translateX(2px)}
-nav a.active{background:#fff;color:#6d28d9;box-shadow:0 6px 16px rgba(0,0,0,.18)}
+nav a.active{background:#fff;color:#0018FF;box-shadow:0 6px 16px rgba(0,0,0,.18)}
 .sb-foot{margin-top:auto;padding-top:14px;display:flex;align-items:center;gap:10px;border-top:1px solid rgba(255,255,255,.18)}
 .sb-foot img{width:38px;height:38px;border-radius:50%;border:2px solid rgba(255,255,255,.65)}
-.sb-foot .n{font-size:12.5px;font-weight:700} .sb-foot .r{font-size:11px;color:#ece6ff}
+.sb-foot .n{font-size:12.5px;font-weight:700} .sb-foot .r{font-size:11px;color:#CEE2FF}
 .mainwrap{margin-left:var(--sb);flex:1;min-width:0;display:flex;flex-direction:column}
 .topbar{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.82);backdrop-filter:blur(10px);
   border-bottom:1px solid var(--line);padding:12px 22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
@@ -62,9 +65,20 @@ main{padding:22px;flex:1}
 .meta{display:flex;gap:8px;flex-wrap:wrap}
 .chip{background:var(--surface2);border:1px solid var(--line);color:var(--txt);border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:600}
 .chip.good{background:#dcfce7;color:#15803d;border-color:#bbf7d0} .chip.bad{background:#ffe4e6;color:#be123c;border-color:#fecdd3}
-.hero{border-radius:14px;padding:16px 18px;background:linear-gradient(120deg,rgba(99,102,241,.10),rgba(236,72,153,.08));border:1px solid rgba(124,58,237,.18);border-left:4px solid var(--c2);margin-bottom:16px}
+.hero{border-radius:14px;padding:16px 18px;background:linear-gradient(120deg,rgba(0,24,255,.08),rgba(255,196,83,.08));border:1px solid rgba(0,4,221,.18);border-left:4px solid var(--c2);margin-bottom:16px}
 .hero .h{font-size:12px;font-weight:800;color:var(--c2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
-.hero p{margin:0;font-size:14px;line-height:1.6}
+.hero p{margin:0 0 10px;font-size:14px;line-height:1.6} .hero p:last-child{margin-bottom:0}
+.hero strong{color:var(--txt)}
+.skeleton{border-radius:10px;background:linear-gradient(100deg,var(--surface2) 30%,var(--line) 50%,var(--surface2) 70%);
+  background-size:200% 100%;animation:shimmer 1.4s infinite}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.topload{height:3px;border-radius:999px;overflow:hidden;background:var(--line);margin-bottom:14px;position:relative}
+.topload::after{content:"";position:absolute;inset:0;width:34%;border-radius:999px;background:linear-gradient(90deg,var(--c1),var(--c3));animation:slide 1.1s infinite}
+.fade-view{animation:fadeUp .3s ease both}
+.errcard{display:flex;align-items:flex-start;gap:12px}
+.errcard .ic{font-size:22px;line-height:1}
+.errcard .btns{display:flex;gap:8px;margin-top:10px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
 .kpi{border:1px solid var(--line);border-radius:16px;padding:16px;background:var(--surface);transition:.18s;position:relative;overflow:hidden}
 .kpi:hover{transform:translateY(-3px);box-shadow:var(--shadow)}

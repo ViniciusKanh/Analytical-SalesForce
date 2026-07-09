@@ -324,6 +324,11 @@ class Settings:
     # Permitem ativar esses módulos sem fixar nomes no código (regra 16/17).
     satisfaction_source: dict[str, Any] = field(default_factory=dict)
     cancellation_source: dict[str, Any] = field(default_factory=dict)
+    # Fonte configurável de Contratos (objeto de contrato + item de contrato).
+    # Usada pelo módulo de CONSULTA (busca somente leitura) — não pelo pipeline
+    # diário de métricas. Os campos de vínculo (conta/contrato) são opcionais:
+    # sem eles, a consulta funciona em modo degradado (sem relacionamento).
+    contract_source: dict[str, Any] = field(default_factory=dict)
 
     # ------------------------------------------------------------------
     # Validações
@@ -549,6 +554,32 @@ def _carregar_fonte_cancelamento() -> dict[str, Any]:
     }
 
 
+def _carregar_fonte_contrato() -> dict[str, Any]:
+    """Monta a configuração da fonte de Contratos (objeto + vínculos).
+
+    Diferente de satisfação/cancelamento, esta fonte não filtra por data —
+    ela alimenta o módulo de CONSULTA (busca somente leitura de contratos,
+    itens de contrato e clientes). Os campos de vínculo (``account_field`` e
+    ``item_parent_field``) são o NOME DE API do campo de lookup na org; como
+    o projeto não pode inventar nomes de campo (regra 3), eles ficam vazios
+    por padrão — a consulta funciona em modo degradado (sem relacionamento
+    de conta/itens) até que sejam configurados via ``.env`` ou pelo painel.
+
+    Padrões de objeto alinhados à org Penso (``Contrato_oPT__c`` e
+    ``Item_do_Contrato__c``); ajuste via env se sua org usar outros nomes.
+    """
+    return {
+        "object": _get_str("SF_CONTRACT_OBJECT", "Contrato_oPT__c"),
+        "item_object": _get_str("SF_CONTRACT_ITEM_OBJECT", "Item_do_Contrato__c"),
+        # Lookup do Contrato -> Account (nome de API do campo, ex.: "Conta__c").
+        # Vazio = busca de contratos por cliente fica desativada.
+        "account_field": _get_str("SF_CONTRACT_ACCOUNT_FIELD", ""),
+        # Lookup do Item de Contrato -> Contrato (nome de API do campo).
+        # Vazio = a tela de contrato não lista os itens vinculados.
+        "item_parent_field": _get_str("SF_CONTRACT_ITEM_PARENT_FIELD", ""),
+    }
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Constrói (uma única vez) e retorna as configurações do agente.
@@ -659,4 +690,5 @@ def get_settings() -> Settings:
         ],
         satisfaction_source=_carregar_fonte_satisfacao(),
         cancellation_source=_carregar_fonte_cancelamento(),
+        contract_source=_carregar_fonte_contrato(),
     )

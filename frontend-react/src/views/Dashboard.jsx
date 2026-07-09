@@ -2,7 +2,7 @@ import SecaoHeader from "../components/SecaoHeader.jsx";
 import StatGrid from "../components/StatGrid.jsx";
 import AlertList from "../components/AlertList.jsx";
 import DoughnutChart from "../components/DoughnutChart.jsx";
-import { moeda, num, pct, pipelineVal, extrairResumo } from "../format.js";
+import { moeda, num, pct, pipelineVal, extrairResumo, renderResumoHtml } from "../format.js";
 
 const ACC = "#6366f1";
 
@@ -57,7 +57,7 @@ export default function Dashboard({ dia, onVerAlertas }) {
         {resumo && (
           <div className="hero">
             <div className="h">🧠 Análise do dia</div>
-            <p style={{ whiteSpace: "pre-line" }}>{resumo}</p>
+            <div dangerouslySetInnerHTML={{ __html: renderResumoHtml(resumo) }} />
           </div>
         )}
         <StatGrid itens={cards} />
