@@ -103,6 +103,15 @@ def _comando_executar(dia: date | None, enviar_email: bool) -> int:
 
     # Entregas opcionais.
     if enviar_email and settings.email.is_configured:
+        from src.database.repositories import ConfigRepository
+        from src.database.turso_client import get_turso_client
+
+        try:
+            emails_cc = ConfigRepository(get_turso_client()).listar_emails_cc()
+        except Exception as exc:  # não deve impedir o envio ao destinatário principal
+            logger.warning("Falha ao ler e-mails em cópia no Turso: %s", type(exc).__name__)
+            emails_cc = []
+
         enviado = enviar_relatorio_email(
             config=settings.email,
             assunto=f"Analytical-Force — Relatório {resultado.dia}",
@@ -111,6 +120,7 @@ def _comando_executar(dia: date | None, enviar_email: bool) -> int:
             alerts=resultado.alertas,
             report_markdown=resultado.markdown,
             highlights=resultado.destaques,
+            cc_emails=emails_cc,
         )
         print(f"  E-mail enviado:    {enviado}")
 

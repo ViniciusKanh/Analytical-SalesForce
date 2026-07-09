@@ -162,10 +162,11 @@ sequenceDiagram
 
 ```
 analytical-force/
-├── api.py                 # API FastAPI (deploy online)
+├── api.py                 # API FastAPI (deploy online) + serve o painel React em "/"
 ├── main.py                # CLI
-├── frontend.html          # Painel web multi-tela (single-file)
-├── Dockerfile             # Imagem para HF Spaces
+├── frontend-react/        # Painel web (React + Vite) — ver frontend-react/README.md
+├── frontend.html          # [LEGADO] painel single-file anterior; mantido apenas de referência
+├── Dockerfile             # Imagem para HF Spaces (build Node do painel + imagem Python)
 ├── requirements.txt       # Deps (local)  ·  requirements-hf.txt (Space)
 ├── .env.example           # Modelo de variáveis (sem segredos)
 ├── scripts/               # test_salesforce_oauth · test_gmail_oauth · clean_db
@@ -265,7 +266,17 @@ python main.py --date 2026-06-22  # executa o pipeline
 uvicorn api:app --port 7860       # API + Swagger em /docs
 ```
 
-Abra o **`frontend.html`** e aponte para a URL da API (aba **Configuração**).
+Painel (React), em outro terminal:
+
+```bash
+cd frontend-react
+npm install
+npm run dev                       # http://localhost:5173 — aponte para a API (aba Configuração)
+```
+
+Em produção (Docker/Hugging Face), o build do painel (`npm run build`) já roda
+dentro da imagem — não precisa rodar `npm` manualmente; a API serve o
+`frontend-react/dist` em `/`.
 
 ---
 
@@ -286,8 +297,13 @@ Space tipo **Docker** (build leve). Em **Settings → Variables and secrets**:
 
 | Método | Rota | Descrição |
 | ------ | ---- | --------- |
+| `GET` | `/` | Painel React (`frontend-react/dist`), quando compilado |
+| `GET` | `/api` | Página de instruções da API |
 | `GET` | `/health` | Saúde |
 | `GET` | `/config/check` | Validação (sem segredos) |
+| `GET` | `/config/email-cc` | Lista e-mails em cópia (Cc) do relatório |
+| `POST` | `/config/email-cc` | Cadastra um e-mail em cópia |
+| `DELETE` | `/config/email-cc/{email}` | Remove um e-mail em cópia |
 | `POST` | `/run` | Executa o pipeline |
 | `GET` | `/run?date=` | Executa pelo navegador |
 | `GET` | `/days` | Datas com relatório salvo |
@@ -302,10 +318,17 @@ Header `X-API-Key` quando `APP_API_TOKEN` está definido.
 
 ## 🖥️ Front-end
 
-`frontend.html` é um painel **multi-tela** (single-file): barra lateral, seletor de
-dia que lê o banco por `GET /day`, tema claro/escuro, KPIs animados, filtro de
-alertas, gráfico de severidade, **Registros do dia** com links ao Salesforce,
-**Tendências** (histórico do Turso) e relatório em abas.
+O painel oficial é o **`frontend-react/`** (React + Vite) — ver
+[`frontend-react/README.md`](frontend-react/README.md). Mesmas telas do painel
+anterior: barra lateral, seletor de dia que lê o banco por `GET /day`, tema
+claro/escuro, KPIs, filtro de alertas, gráfico de severidade, **Registros do
+dia** com links ao Salesforce, **Tendências** (histórico do Turso), relatório
+em abas e, agora, cadastro de **e-mails em cópia (Cc)** do relatório diário
+(persistidos no Turso, sem precisar de redeploy).
+
+Em produção, o backend serve o build do painel em `/` (mesmo Space/porta,
+sem CORS entre os dois). O `frontend.html` single-file anterior foi mantido
+no repositório apenas como referência histórica — não recebe mais atualizações.
 
 ---
 

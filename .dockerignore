@@ -29,3 +29,8 @@ Thumbs.db
 
 # Não precisamos das libs pesadas no Space (build usa requirements-hf.txt).
 # (requirements.txt completo permanece no repo para uso local.)
+
+# Painel React: node_modules local não deve subir; o build (npm run build)
+# acontece dentro da própria imagem, na etapa "frontend-build" do Dockerfile.
+frontend-react/node_modules
+frontend-react/dist

@@ -419,6 +419,7 @@ def enviar_relatorio_email(
     alerts: list[dict[str, Any]],
     report_markdown: str = "",
     highlights: dict[str, list[dict[str, Any]]] | None = None,
+    cc_emails: list[str] | None = None,
 ) -> bool:
     """Envia o relatório executivo por e-mail.
 
@@ -431,6 +432,8 @@ def enviar_relatorio_email(
         report_date: Data de referência do relatório (texto).
         metrics: Métricas calculadas (leads/opportunities/tasks/...).
         alerts: Lista de alertas gerada pelo motor de risco.
+        cc_emails: E-mails adicionais em cópia (persistidos no Turso via
+            ``ConfigRepository``, cadastrados pelo painel). Opcional.
 
     Returns:
         ``True`` se enviado; ``False`` se não configurado ou em caso de erro.
@@ -443,36 +446,53 @@ def enviar_relatorio_email(
     html = _montar_html(report_date, metrics, alerts, resumo_ia, highlights or {})
     texto = _montar_texto(report_date, metrics, alerts, resumo_ia)
 
+    # Remove duplicados/vazios e evita repetir o destinatário principal em Cc.
+    cc_limpo = sorted(
+        {
+            e.strip()
+            for e in (cc_emails or [])
+            if e.strip() and e.strip().lower() != config.recipient_email.strip().lower()
+        }
+    )
+
     remetente = config.gmail_sender or config.smtp_user or "analytical-force@localhost"
     mensagem = MIMEMultipart("alternative")
     mensagem["Subject"] = assunto
     mensagem["From"] = remetente
     mensagem["To"] = config.recipient_email
+    if cc_limpo:
+        mensagem["Cc"] = ", ".join(cc_limpo)
     mensagem.attach(MIMEText(texto, "plain", "utf-8"))
     mensagem.attach(MIMEText(html, "html", "utf-8"))
 
     # Gmail API tem prioridade (HTTPS; passa por firewalls que bloqueiam SMTP).
     if config.gmail_api_configured:
         return _enviar_via_gmail_api(config, mensagem)
-    return _enviar_via_smtp(config, mensagem)
+    return _enviar_via_smtp(config, mensagem, cc_limpo)
 
 
-def _enviar_via_smtp(config: EmailSettings, mensagem: MIMEMultipart) -> bool:
+def _enviar_via_smtp(
+    config: EmailSettings, mensagem: MIMEMultipart, cc_emails: list[str] | None = None
+) -> bool:
     """Envia a mensagem via SMTP (STARTTLS). Usado em ambiente local."""
+    destinatarios = [config.recipient_email, *(cc_emails or [])]
     try:
         with smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=30) as servidor:
             servidor.starttls()
             if config.smtp_user and config.smtp_password:
                 servidor.login(config.smtp_user, config.smtp_password)
-            servidor.sendmail(
-                mensagem["From"], [config.recipient_email], mensagem.as_string()
-            )
-        logger.info("Relatório enviado por e-mail (SMTP) para %s.", config.recipient_email)
+            servidor.sendmail(mensagem["From"], destinatarios, mensagem.as_string())
+        logger.info(
+            "Relatório enviado por e-mail (SMTP) para %s (cc=%d).",
+            config.recipient_email,
+            len(cc_emails or []),
+        )
         return True
     except Exception as exc:  # não deve derrubar o agente
-        # Surface do tipo de erro (sem expor senha). OSError costuma indicar
-        # SMTP bloqueado pelo ambiente (ex.: Hugging Face) — use a Gmail API.
-        logger.error("Falha ao enviar e-mail (SMTP): %s", type(exc).__name__)
+        # Loga o tipo e a mensagem do erro — o filtro de log já mascara
+        # padrões de senha/token, então isso não expõe segredos. OSError
+        # costuma indicar SMTP bloqueado pelo ambiente (ex.: Hugging Face).
+        logger.error("Falha ao enviar e-mail (SMTP): %s: %s", type(exc).__name__, exc)
         return False
 
 
@@ -518,6 +538,9 @@ def _enviar_via_gmail_api(config: EmailSettings, mensagem: MIMEMultipart) -> boo
         )
         return True
     except Exception as exc:  # não deve derrubar o agente
-        # Surface do tipo de erro, sem expor token.
-        logger.error("Falha ao enviar e-mail (Gmail API): %s", type(exc).__name__)
+        # Loga o tipo e a mensagem do erro (sem expor token/segredo). O
+        # RuntimeError de _obter_access_token_gmail já traz só o código de
+        # erro OAuth (ex.: "invalid_grant") e a descrição do Google — o
+        # filtro de log mascara qualquer padrão de token/senha por segurança.
+        logger.error("Falha ao enviar e-mail (Gmail API): %s: %s", type(exc).__name__, exc)
         return False

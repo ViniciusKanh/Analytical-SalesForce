@@ -6,7 +6,23 @@
 #
 # As credenciais NÃO ficam na imagem: são lidas de variáveis de ambiente
 # (Secrets do Space). Nunca faça COPY do arquivo .env.
+#
+# Build em duas etapas: a primeira compila o painel React (frontend-react/)
+# com Node; a segunda é a imagem Python final, que só recebe o resultado
+# estático (dist/) — o Node não entra na imagem publicada. O FastAPI serve
+# esse dist/ em "/" (ver api.py), então API e painel respondem na mesma
+# porta/Space, sem precisar de um segundo host nem de CORS entre os dois.
 # ============================================================
+
+# ---------------- Etapa 1: build do painel (Node) ----------------
+FROM node:20-slim AS frontend-build
+WORKDIR /frontend
+COPY frontend-react/package.json frontend-react/package-lock.json* ./
+RUN npm install
+COPY frontend-react/ ./
+RUN npm run build
+
+# ---------------- Etapa 2: imagem final (Python) ----------------
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -28,6 +44,10 @@ RUN pip install --no-cache-dir -r requirements-hf.txt
 
 # Copia o código da aplicação.
 COPY --chown=user:user . .
+
+# Copia só o resultado do build do painel (estático) — não o Node nem o
+# node_modules, que ficam de fora da imagem final.
+COPY --chown=user:user --from=frontend-build /frontend/dist ./frontend-react/dist
 
 # Garante diretórios graváveis (logs/relatórios/exports são transitórios;
 # a persistência real é no Turso). Inclui o cache de modelos do Hugging Face.

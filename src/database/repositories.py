@@ -408,11 +408,34 @@ class SnapshotRepository:
 # ----------------------------------------------------------------------
 # agent_config
 # ----------------------------------------------------------------------
+# Chave usada em ``agent_config`` para persistir os e-mails em cópia (Cc)
+# do relatório diário. Cadastrados pelo painel (React), sem precisar de
+# redeploy — ao contrário do destinatário principal, que vem do .env.
+_CHAVE_EMAILS_CC = "email_cc_recipients"
+
+
 class ConfigRepository:
     """Operações sobre a tabela ``agent_config``."""
 
     def __init__(self, client: TursoClient) -> None:
         self._client = client
+
+    def listar_emails_cc(self) -> list[str]:
+        """Retorna a lista de e-mails em cópia cadastrados (pode ser vazia)."""
+        valor = self.buscar_config(_CHAVE_EMAILS_CC)
+        if not valor:
+            return []
+        return sorted({e.strip() for e in valor.split(",") if e.strip()})
+
+    def definir_emails_cc(self, emails: list[str]) -> list[str]:
+        """Substitui a lista completa de e-mails em cópia (upsert)."""
+        limpo = sorted({e.strip().lower() for e in emails if e.strip()})
+        self.salvar_config(
+            _CHAVE_EMAILS_CC,
+            ",".join(limpo),
+            descricao="E-mails que recebem cópia (Cc) do relatório diário.",
+        )
+        return limpo
 
     def buscar_config(self, chave: str) -> str | None:
         """Retorna o valor de uma configuração persistida (ou None)."""

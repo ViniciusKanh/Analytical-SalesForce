@@ -1,0 +1,87 @@
+import SecaoHeader from "../components/SecaoHeader.jsx";
+import StatGrid from "../components/StatGrid.jsx";
+import AlertList from "../components/AlertList.jsx";
+import DoughnutChart from "../components/DoughnutChart.jsx";
+import { moeda, num, pct, pipelineVal, extrairResumo } from "../format.js";
+
+const ACC = "#6366f1";
+
+function MetaChips({ dia }) {
+  const altos = (dia.alerts || []).filter((a) => a.severity === "high").length;
+  const entregas = dia.deliveries || {};
+  return (
+    <div className="meta">
+      <span className="chip">📅 {dia.date}</span>
+      <span className="chip">🤖 {dia.provider || "—"}</span>
+      <span className="chip">
+        🚨 {dia.alerts_count || 0} · {altos} altos
+      </span>
+      {"email_enviado" in entregas && (
+        <span className={"chip " + (entregas.email_enviado ? "good" : "bad")}>
+          {entregas.email_enviado ? "✓ E-mail" : "✕ E-mail"}
+        </span>
+      )}
+      {"clickup_tarefas" in entregas && (
+        <span className={"chip " + (entregas.clickup_tarefas ? "good" : "")}>
+          ClickUp: {entregas.clickup_tarefas || 0}
+        </span>
+      )}
+    </div>
+  );
+}
+
+export default function Dashboard({ dia, onVerAlertas }) {
+  const L = dia.metrics?.leads || {};
+  const O = dia.metrics?.opportunities || {};
+  const T = dia.metrics?.tasks || {};
+  const Sa = dia.metrics?.satisfaction || {};
+  const C = dia.metrics?.cancellations || {};
+  const resumo = extrairResumo(dia.report_markdown);
+
+  const cards = [
+    ["🌱", "Leads novos", num(L.new_leads), "green"],
+    ["🎯", "Conversão", pct(L.conversion_rate), "blue"],
+    ["💰", "Pipeline aberto", moeda(pipelineVal(O)), "violet"],
+    ["🏆", "Ganhas", num(O.won_opportunities), "blue"],
+    ["📉", "Perdidas", num(O.lost_opportunities), "red"],
+    ["🚧", "Paradas", num(O.stalled_opportunities), "amber"],
+    ["⏰", "Tarefas vencidas", num(T.tasks_overdue), "amber"],
+  ];
+  if (Sa.configured && Sa.responses) cards.push(["😊", "Satisfação", num(Sa.avg_score), "teal"]);
+  if (C.configured && C.cancellations_count) cards.push(["❌", "Cancelamentos", num(C.cancellations_count), "red"]);
+
+  return (
+    <>
+      <div className="card">
+        <SecaoHeader icone="🏠" titulo="Resumo do dia" cor={ACC} extra={<MetaChips dia={dia} />} />
+        {resumo && (
+          <div className="hero">
+            <div className="h">🧠 Análise do dia</div>
+            <p style={{ whiteSpace: "pre-line" }}>{resumo}</p>
+          </div>
+        )}
+        <StatGrid itens={cards} />
+      </div>
+      <div className="card">
+        <SecaoHeader
+          icone="🚨"
+          titulo="Alertas por severidade"
+          cor="#ef4444"
+          extra={
+            <span className="chip" style={{ cursor: "pointer" }} onClick={onVerAlertas}>
+              Ver todos →
+            </span>
+          }
+        />
+        <div className="split">
+          <div>
+            <AlertList alertas={(dia.alerts || []).slice(0, 4)} />
+          </div>
+          <div>
+            <DoughnutChart alertas={dia.alerts || []} />
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}

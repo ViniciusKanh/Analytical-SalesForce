@@ -10,7 +10,8 @@ Princípios:
 - O Salesforce continua somente leitura; nenhuma credencial é exposta.
 
 Endpoints:
-- ``GET  /``             página simples com instruções.
+- ``GET  /``             painel React (frontend-react/dist), quando compilado.
+- ``GET  /api``          página simples com instruções (info da API).
 - ``GET  /health``       verificação de saúde.
 - ``GET  /config/check`` validação da configuração (sem segredos).
 - ``POST /run``          executa o pipeline diário (protegido por X-API-Key).
@@ -20,12 +21,19 @@ Endpoints:
 from __future__ import annotations
 
 import os
+import re
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+# Validação simples de formato de e-mail (não substitui confirmação real de
+# entrega — apenas evita cadastrar valores claramente inválidos).
+_REGEX_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 from src.agent.analytical_force_agent import AnalyticalForceAgent
 from src.config import get_settings
@@ -87,12 +95,18 @@ class RunRequest(BaseModel):
     create_clickup: bool = False  # cria tarefas no ClickUp (se habilitado)
 
 
+class EmailCcRequest(BaseModel):
+    """Corpo para cadastrar um e-mail em cópia (Cc) no relatório diário."""
+
+    email: str
+
+
 # ----------------------------------------------------------------------
 # Endpoints
 # ----------------------------------------------------------------------
-@app.get("/", response_class=HTMLResponse)
+@app.get("/api", response_class=HTMLResponse)
 def raiz() -> str:
-    """Página inicial com instruções básicas."""
+    """Página com instruções básicas da API (o painel React vive em ``/``)."""
     return """\
 <!doctype html><html lang="pt-br"><head><meta charset="utf-8">
 <title>Analytical-Force API</title>
@@ -102,6 +116,7 @@ border-radius:6px}a{color:#1f4fb2}</style></head><body>
 <h1>📊 Analytical-Force API</h1>
 <p>Agente de inteligência analítica (Salesforce → métricas em Python → Turso →
 relatório). Opera <strong>somente leitura</strong> no Salesforce.</p>
+<p>O painel web fica em <a href="/">/</a> (React, quando compilado).</p>
 <ul>
 <li><code>GET /health</code> — verificação de saúde</li>
 <li><code>GET /config/check</code> — validação da configuração (sem segredos)</li>
@@ -132,6 +147,75 @@ def config_check() -> dict[str, Any]:
     }
 
 
+@app.get("/config/email-cc")
+def listar_email_cc(
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+) -> dict[str, Any]:
+    """Lista os e-mails cadastrados para receber cópia (Cc) do relatório."""
+    _exigir_token(x_api_key)
+    from src.database.repositories import ConfigRepository
+    from src.database.turso_client import get_turso_client
+
+    try:
+        repo = ConfigRepository(get_turso_client())
+        return {"emails_cc": repo.listar_emails_cc()}
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Falha ao ler e-mails em cópia: {type(exc).__name__}: {exc}",
+        )
+
+
+@app.post("/config/email-cc")
+def adicionar_email_cc(
+    req: EmailCcRequest,
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+) -> dict[str, Any]:
+    """Cadastra um e-mail em cópia (Cc) do relatório diário."""
+    _exigir_token(x_api_key)
+    email = req.email.strip().lower()
+    if not _REGEX_EMAIL.match(email):
+        raise HTTPException(status_code=400, detail=f"E-mail inválido: {req.email!r}")
+
+    from src.database.repositories import ConfigRepository
+    from src.database.turso_client import get_turso_client
+
+    try:
+        repo = ConfigRepository(get_turso_client())
+        atuais = repo.listar_emails_cc()
+        if email not in atuais:
+            atuais.append(email)
+        emails_cc = repo.definir_emails_cc(atuais)
+        return {"emails_cc": emails_cc}
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Falha ao cadastrar e-mail em cópia: {type(exc).__name__}: {exc}",
+        )
+
+
+@app.delete("/config/email-cc/{email}")
+def remover_email_cc(
+    email: str,
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+) -> dict[str, Any]:
+    """Remove um e-mail da lista de cópia (Cc) do relatório diário."""
+    _exigir_token(x_api_key)
+    from src.database.repositories import ConfigRepository
+    from src.database.turso_client import get_turso_client
+
+    try:
+        repo = ConfigRepository(get_turso_client())
+        restantes = [e for e in repo.listar_emails_cc() if e != email.strip().lower()]
+        emails_cc = repo.definir_emails_cc(restantes)
+        return {"emails_cc": emails_cc}
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Falha ao remover e-mail em cópia: {type(exc).__name__}: {exc}",
+        )
+
+
 def _executar_pipeline(req: RunRequest) -> dict[str, Any]:
     """Executa o pipeline e devolve o JSON de resultado (com erros tratados)."""
     settings = get_settings()
@@ -158,6 +242,15 @@ def _executar_pipeline(req: RunRequest) -> dict[str, Any]:
 
     entregas: dict[str, Any] = {}
     if req.send_email and settings.email.is_configured:
+        from src.database.repositories import ConfigRepository
+        from src.database.turso_client import get_turso_client
+
+        try:
+            emails_cc = ConfigRepository(get_turso_client()).listar_emails_cc()
+        except Exception as exc:  # não deve impedir o envio ao destinatário principal
+            logger.warning("Falha ao ler e-mails em cópia no Turso: %s", type(exc).__name__)
+            emails_cc = []
+
         entregas["email_enviado"] = enviar_relatorio_email(
             config=settings.email,
             assunto=f"Analytical-Force — Relatório {resultado.dia}",
@@ -166,6 +259,7 @@ def _executar_pipeline(req: RunRequest) -> dict[str, Any]:
             alerts=resultado.alertas,
             report_markdown=resultado.markdown,
             highlights=resultado.destaques,
+            cc_emails=emails_cc,
         )
     if req.create_clickup and settings.clickup.auto_create:
         entregas["clickup_tarefas"] = criar_tarefas_de_alertas(
@@ -337,3 +431,20 @@ def metrics_do_dia(
         raise HTTPException(
             status_code=502, detail=f"Falha ao ler métricas: {type(exc).__name__}: {exc}"
         )
+
+
+# ----------------------------------------------------------------------
+# Painel React (estático) — serve frontend-react/dist em "/", se compilado.
+# ----------------------------------------------------------------------
+# Precisa ser o ÚLTIMO registro de rota: o Starlette tenta as rotas nesta
+# ordem, então os endpoints acima (``/health``, ``/days`` etc.) continuam
+# tendo prioridade sobre o mount; só cai aqui o que não bateu com nenhuma
+# rota explícita (ou seja, os arquivos do painel).
+_DIST_PAINEL = Path(__file__).resolve().parent / "frontend-react" / "dist"
+if _DIST_PAINEL.is_dir():
+    app.mount("/", StaticFiles(directory=str(_DIST_PAINEL), html=True), name="painel")
+else:
+    logger.warning(
+        "frontend-react/dist não encontrado — painel React não será servido em '/'. "
+        "Rode 'npm run build' em frontend-react/ (o Dockerfile já faz isso no deploy)."
+    )
