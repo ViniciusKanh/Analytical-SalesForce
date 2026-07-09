@@ -11,6 +11,10 @@ __pycache__/
 .eggs/
 build/
 dist/
+# Excecao: o painel React precisa do build comitado para a Vercel servir
+# "/" (o deploy Python da Vercel nao roda "npm run build" automaticamente).
+!frontend-react/dist/
+!frontend-react/dist/**
 .venv/
 venv/
 env/
@@ -42,5 +46,5 @@ Thumbs.db
 .coverage
 htmlcov/
 
-# Repositório local do Hugging Face Space
+# Repositï¿½rio local do Hugging Face Space
 analytical_force/

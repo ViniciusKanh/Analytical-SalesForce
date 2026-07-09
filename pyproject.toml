@@ -21,6 +21,8 @@ dependencies = [
     "pydantic>=2.6.0",
     "python-dateutil>=2.9.0",
     "markdown>=3.6",
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.29.0",
 ]
 
 [project.optional-dependencies]
@@ -37,6 +39,9 @@ analytical-force = "main:cli"
 
 [tool.setuptools]
 packages = ["src"]
+
+[tool.vercel]
+entrypoint = "api:app"
 
 [tool.ruff]
 line-length = 100
