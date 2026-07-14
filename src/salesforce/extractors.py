@@ -408,6 +408,119 @@ class SalesforceExtractor:
         logger.info("Cancelamentos extraídos: %d.", len(df))
         return df
 
+    # ------------------------------------------------------------------
+    # Extração — Contratos (modificações do dia + reajuste do mês)
+    # ------------------------------------------------------------------
+    def _campos_contrato(self, source: dict[str, Any], *extras: str) -> list[str]:
+        """Monta a lista de campos de contrato: base + opcionais configurados.
+
+        A base usa SOMENTE campos padrão do Salesforce (sempre disponíveis em
+        qualquer objeto), garantindo que "contratos modificados" funcione sem
+        exigir configuração alguma (regra 3: nunca inventar campos).
+        """
+        campos = list(_COLUNAS_CONTRATO_BASE)
+        for campo in (source.get("account_name_field"), *extras):
+            if campo and campo not in campos:
+                campos.append(campo)
+        return campos
+
+    def extrair_contratos_modificados(
+        self, dia: date, source: dict[str, Any]
+    ) -> pd.DataFrame:
+        """Extrai contratos modificados no dia (por ``LastModifiedDate``).
+
+        Usa apenas campos padrão (Id, Name, LastModifiedDate, LastModifiedBy)
+        — sempre disponíveis, sem exigir configuração. Se ``value_field``/
+        ``previous_value_field`` estiverem configurados, também são incluídos
+        (para o e-mail poder mostrar o valor atual do contrato modificado).
+
+        Args:
+            dia: Dia de referência.
+            source: Configuração ``contract_source``.
+
+        Returns:
+            DataFrame com os contratos modificados no dia (vazio se o objeto
+            de contrato não estiver configurado ou a consulta falhar).
+        """
+        objeto = source.get("object")
+        if not objeto:
+            return pd.DataFrame(columns=_COLUNAS_CONTRATO_BASE)
+
+        inicio, fim = intervalo_do_dia(dia, self._tz)
+        campos = self._campos_contrato(
+            source, source.get("value_field", ""), source.get("previous_value_field", "")
+        )
+        campos_ok = self._campos_validos(objeto, campos)
+        if "LastModifiedDate" not in campos_ok:
+            logger.warning("LastModifiedDate ausente em %s; contratos ignorados.", objeto)
+            return pd.DataFrame(columns=campos_ok)
+
+        soql = queries.registros_por_intervalo(
+            objeto, campos_ok, "LastModifiedDate",
+            para_soql_datetime(inicio), para_soql_datetime(fim),
+        )
+        try:
+            registros = self._client.query(soql)
+        except Exception as exc:  # fonte opcional não deve quebrar o agente
+            logger.warning("Falha ao extrair contratos modificados: %s", type(exc).__name__)
+            return pd.DataFrame(columns=campos_ok)
+        logger.info("Contratos modificados extraídos: %d.", len(registros))
+        return self._para_dataframe(registros, campos_ok)
+
+    def extrair_contratos_reajustados_mes(
+        self, dia: date, source: dict[str, Any]
+    ) -> pd.DataFrame:
+        """Extrai contratos reajustados no MÊS de referência (valor atual x anterior).
+
+        Módulo configurável (regra 16/17): requer ``value_field``,
+        ``previous_value_field`` e ``readjustment_date_field`` configurados em
+        ``contract_source``. Sem essa configuração, retorna DataFrame vazio —
+        a análise de reajuste permanece desativada, sem quebrar o pipeline.
+
+        Args:
+            dia: Dia de referência (usado para determinar o mês corrente).
+            source: Configuração ``contract_source``.
+
+        Returns:
+            DataFrame com os contratos reajustados no mês (vazio se
+            desativado ou a consulta falhar).
+        """
+        objeto = source.get("object")
+        date_field = source.get("readjustment_date_field")
+        value_field = source.get("value_field")
+        previous_field = source.get("previous_value_field")
+        if not (objeto and date_field and value_field and previous_field):
+            return pd.DataFrame(columns=_COLUNAS_CONTRATO_BASE)
+
+        inicio_mes = dia.replace(day=1)
+        fim_mes = (
+            inicio_mes.replace(year=inicio_mes.year + 1, month=1)
+            if inicio_mes.month == 12
+            else inicio_mes.replace(month=inicio_mes.month + 1)
+        )
+        campos = self._campos_contrato(
+            source, value_field, previous_field, source.get("readjustment_field", ""), date_field
+        )
+        campos_ok = self._campos_validos(objeto, campos)
+        if date_field not in campos_ok:
+            logger.warning(
+                "Campo de data de reajuste (%s) ausente em %s; módulo desativado.",
+                date_field, objeto,
+            )
+            return pd.DataFrame(columns=campos_ok)
+
+        soql = queries.registros_por_intervalo(
+            objeto, campos_ok, date_field,
+            para_soql_date(inicio_mes), para_soql_date(fim_mes),
+        )
+        try:
+            registros = self._client.query(soql)
+        except Exception as exc:
+            logger.warning("Falha ao extrair reajustes de contrato: %s", type(exc).__name__)
+            return pd.DataFrame(columns=campos_ok)
+        logger.info("Contratos reajustados no mês extraídos: %d.", len(registros))
+        return self._para_dataframe(registros, campos_ok)
+
 
 # ----------------------------------------------------------------------
 # Conversão de sentimento (categórico) em nota numérica
@@ -452,6 +565,16 @@ _COLUNAS_TASK = [
     "WhoId",
     "WhatId",
     "IsClosed",
+]
+
+# Campos padrão de Contrato (sempre presentes, independente de configuração).
+_COLUNAS_CONTRATO_BASE = [
+    "Id",
+    "Name",
+    "CreatedDate",
+    "LastModifiedDate",
+    "LastModifiedById",
+    "LastModifiedBy.Name",
 ]
 
 

@@ -144,3 +144,23 @@ input:focus{outline:none;border-color:var(--c1);box-shadow:0 0 0 3px rgba(99,102
 .ccrow button{background:none;border:0;color:var(--red);cursor:pointer;font-size:13px;font-weight:700}
 .ccadd{display:flex;gap:8px;margin-top:14px}
 @media(max-width:860px){.sidebar{transform:translateX(-100%)} .sidebar.open{transform:none} .mainwrap{margin-left:0} .hamb{display:block} .split{grid-template-columns:1fr}}
+
+/* ---- Reforço visual: mais dinâmico/animado (reajuste de contrato, KPIs) ---- */
+.disclaimer{margin-top:12px;padding:10px 13px;border-radius:10px;background:var(--surface2);border:1px dashed var(--line);color:var(--muted);font-size:12px;line-height:1.5}
+.af-glow{position:relative;overflow:hidden}
+.af-glow::before{content:"";position:absolute;inset:-2px;border-radius:var(--radius);padding:2px;
+  background:linear-gradient(120deg,var(--c1),var(--c3),var(--c2));background-size:220% 220%;
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
+  animation:af-borderflow 5s ease infinite;opacity:.55;pointer-events:none}
+@keyframes af-borderflow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+.kpis .kpi{animation:fadeUp .45s ease both}
+.kpis .kpi:nth-child(1){animation-delay:.02s} .kpis .kpi:nth-child(2){animation-delay:.06s}
+.kpis .kpi:nth-child(3){animation-delay:.10s} .kpis .kpi:nth-child(4){animation-delay:.14s}
+.kpis .kpi:nth-child(5){animation-delay:.18s} .kpis .kpi:nth-child(6){animation-delay:.22s}
+.kpis .kpi:nth-child(7){animation-delay:.26s} .kpis .kpi:nth-child(8){animation-delay:.30s}
+.kpis .kpi:nth-child(9){animation-delay:.34s} .kpis .kpi:nth-child(10){animation-delay:.38s}
+.kpi:hover .ic{transform:scale(1.08) rotate(-4deg);transition:.2s}
+.dcard{transition:transform .2s ease,box-shadow .2s ease;animation:fadeUp .4s ease both}
+.dcard:hover{transform:translateY(-4px) scale(1.01);box-shadow:0 14px 30px rgba(0,4,221,.14)}
+.dgrid .dcard:nth-child(1){animation-delay:.03s} .dgrid .dcard:nth-child(2){animation-delay:.08s}
+.dgrid .dcard:nth-child(3){animation-delay:.13s} .dgrid .dcard:nth-child(4){animation-delay:.18s}

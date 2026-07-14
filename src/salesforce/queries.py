@@ -196,3 +196,31 @@ def registros_por_data(
     """
     cols = _campos(campos)
     return f"SELECT {cols} FROM {objeto} WHERE {date_field} = {dia_iso}"
+
+
+def registros_por_intervalo(
+    objeto: str, campos: list[str], date_field: str, inicio: str, fim: str
+) -> str:
+    """Monta uma consulta por intervalo [inicio, fim) em um campo configurável.
+
+    Diferente de :func:`registros_por_data` (igualdade exata), esta função
+    aceita um INTERVALO — necessário para campos ``datetime`` (ex.:
+    ``LastModifiedDate``, para "contratos modificados no dia") ou para
+    períodos maiores que um dia (ex.: "reajustes aplicados no mês"). Os
+    limites já devem vir formatados para SOQL (ver ``utils.date_utils``).
+
+    Args:
+        objeto: Nome da API do objeto (ex.: ``Contrato_oPT__c``).
+        campos: Lista de campos a selecionar.
+        date_field: Campo de data/datetime usado no filtro.
+        inicio: Limite inferior (inclusive), já formatado para SOQL.
+        fim: Limite superior (exclusivo), já formatado para SOQL.
+
+    Returns:
+        String SOQL pronta (``SELECT ... WHERE date_field >= inicio AND date_field < fim``).
+    """
+    cols = _campos(campos)
+    return (
+        f"SELECT {cols} FROM {objeto} "
+        f"WHERE {date_field} >= {inicio} AND {date_field} < {fim}"
+    )

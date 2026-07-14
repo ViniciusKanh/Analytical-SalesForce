@@ -152,11 +152,16 @@ def _md_para_html(texto: str) -> str:
 # Blocos do e-mail HTML
 # ----------------------------------------------------------------------
 def _linha_kpi(rotulo: str, valor: str, destaque: str = _PENSO_BLUE) -> str:
-    """Célula de KPI (rótulo + valor) para a grade de números-chave."""
+    """Célula de KPI (rótulo + valor) para a grade de números-chave.
+
+    Recebe a classe ``af-kpi-cell`` (dark mode + empilhamento em telas
+    pequenas via CSS em ``<head>``) além do estilo inline (fallback para
+    clientes que ignoram ``<style>``, ex.: Outlook desktop).
+    """
     return (
-        '<td style="padding:10px 14px;border:1px solid #e6e8eb;'
+        '<td class="af-kpi-cell" style="padding:10px 14px;border:1px solid #e6e8eb;'
         'border-radius:8px;background:#f8fafc;vertical-align:top;">'
-        f'<div style="font-size:11px;color:#64748b;text-transform:uppercase;'
+        f'<div class="af-kpi-label" style="font-size:11px;color:#64748b;text-transform:uppercase;'
         f'letter-spacing:.04em;">{_escape(rotulo)}</div>'
         f'<div style="font-size:20px;font-weight:700;color:{destaque};'
         f'margin-top:2px;">{_escape(valor)}</div></td>'
@@ -164,12 +169,16 @@ def _linha_kpi(rotulo: str, valor: str, destaque: str = _PENSO_BLUE) -> str:
 
 
 def _grade_kpis(metrics: dict[str, Any]) -> str:
-    """Monta a grade de números-chave (3 colunas por linha)."""
+    """Monta a grade de números-chave (3 colunas por linha, empilha no mobile).
+
+    Não inclui mais "Tarefas vencidas" (removido a pedido — volume alto
+    demais para um KPI de topo); em seu lugar entram "Oportunidades criadas".
+    """
     leads = metrics.get("leads", {}) or {}
     opp = metrics.get("opportunities", {}) or {}
-    tasks = metrics.get("tasks", {}) or {}
     sat = metrics.get("satisfaction", {}) or {}
     canc = metrics.get("cancellations", {}) or {}
+    contratos = metrics.get("contracts", {}) or {}
 
     celulas: list[str] = [
         _linha_kpi("Leads novos", _num(leads.get("new_leads"))),
@@ -178,10 +187,10 @@ def _grade_kpis(metrics: dict[str, Any]) -> str:
             "Pipeline aberto",
             _moeda(opp.get("open_pipeline_product_value") or opp.get("open_pipeline_amount")),
         ),
+        _linha_kpi("Oportunidades criadas", _num(opp.get("new_opportunities"))),
         _linha_kpi("Oportunidades ganhas", _num(opp.get("won_opportunities")), _SUCESSO_TXT),
         _linha_kpi("Oportunidades perdidas", _num(opp.get("lost_opportunities")), _ERRO_TXT),
         _linha_kpi("Oportunidades paradas", _num(opp.get("stalled_opportunities")), _ALERTA_TXT),
-        _linha_kpi("Tarefas vencidas", _num(tasks.get("tasks_overdue")), _ALERTA_TXT),
     ]
     if sat.get("configured") and sat.get("responses"):
         celulas.append(_linha_kpi("Satisfação (nota média)", _num(sat.get("avg_score"))))
@@ -189,6 +198,8 @@ def _grade_kpis(metrics: dict[str, Any]) -> str:
         celulas.append(
             _linha_kpi("Cancelamentos", _num(canc.get("cancellations_count")), _ERRO_TXT)
         )
+    if contratos.get("configured"):
+        celulas.append(_linha_kpi("Contratos modificados hoje", _num(contratos.get("modified_today_count"))))
 
     # Distribui as células em linhas de 3 colunas.
     linhas_html: list[str] = []
@@ -205,6 +216,85 @@ def _grade_kpis(metrics: dict[str, Any]) -> str:
         'style="border-collapse:separate;border-spacing:8px 0;">'
         + "".join(linhas_html)
         + "</table>"
+    )
+
+
+def _bloco_contratos(metrics: dict[str, Any]) -> str:
+    """Bloco de Contratos: modificações do dia + reajuste do mês (se configurado).
+
+    Sempre traz o aviso de que o valor de reajuste é uma ESTIMATIVA (delta de
+    valores), nunca um dado 100% garantido — regra 3/16/17 do projeto.
+    """
+    m = metrics.get("contracts", {}) or {}
+    if not m.get("configured"):
+        return ""
+
+    partes: list[str] = []
+    modificados = m.get("modified_today") or []
+    if modificados:
+        itens = "".join(
+            f"<li style='margin-bottom:3px'>"
+            f"<strong>{_escape(c.get('name') or c.get('id') or '—')}</strong>"
+            f" <span style='color:#64748b'>— modificado por "
+            f"{_escape(c.get('modified_by') or 'responsável não identificado')}</span></li>"
+            for c in modificados[:15]
+        )
+        partes.append(
+            f"<div class='af-altcard' style='background:{_HOVER};border-radius:10px;padding:12px 14px;margin-bottom:10px;'>"
+            f"<div style='font-size:13px;font-weight:700;color:#0f172a;margin-bottom:6px;'>"
+            f"📄 Contratos modificados hoje "
+            f"<span style='color:#94a3b8;font-weight:400'>({m.get('modified_today_count', 0)})</span></div>"
+            f"<ul style='margin:0;padding-left:18px;font-size:13px;color:#334155'>{itens}</ul>"
+            f"</div>"
+        )
+
+    if m.get("readjustment_configured"):
+        qtd = m.get("readjustment_month_count") or 0
+        if qtd:
+            inconsist = int(m.get("readjustment_inconsistent_count") or 0)
+            reaj_itens = "".join(
+                f"<li style='margin-bottom:3px'>"
+                f"<strong>{_escape(c.get('name') or c.get('id') or '—')}</strong>: "
+                f"{_moeda(c.get('previous_value'))} → {_moeda(c.get('current_value'))} "
+                f"(<span style='color:{_SUCESSO_TXT if (c.get('delta') or 0) >= 0 else _ERRO_TXT}'>"
+                f"{_moeda(c.get('delta'))}</span>"
+                + (
+                    f" · <span style='color:{_ALERTA_TXT}'>⚠ possível inconsistência</span>"
+                    if c.get("inconsistent")
+                    else ""
+                )
+                + ")</li>"
+                for c in (m.get("readjustment_contracts") or [])[:10]
+            )
+            partes.append(
+                f"<div class='af-altcard' style='background:{_HOVER};border-radius:10px;padding:12px 14px;margin-bottom:10px;'>"
+                f"<div style='font-size:13px;font-weight:700;color:#0f172a;margin-bottom:6px;'>"
+                f"💹 Reajuste de contratos no mês "
+                f"<span style='color:#94a3b8;font-weight:400'>({qtd} contrato(s) · "
+                f"{_moeda(m.get('readjustment_month_total'))})</span></div>"
+                f"<ul style='margin:0 0 8px;padding-left:18px;font-size:13px;color:#334155'>{reaj_itens}</ul>"
+                + (
+                    f"<div style='font-size:12px;color:{_ALERTA_TXT};margin-bottom:6px;'>"
+                    f"⚠ {inconsist} contrato(s) com possível inconsistência entre o reajuste "
+                    "informado e o valor calculado.</div>"
+                    if inconsist
+                    else ""
+                )
+                + f"<div style='font-size:11px;color:#94a3b8;'>⚠ {_escape(m.get('readjustment_disclaimer', ''))}</div>"
+                + "</div>"
+            )
+        else:
+            partes.append(
+                f"<div style='font-size:12px;color:#94a3b8;margin-bottom:10px;'>"
+                "Nenhum contrato com reajuste identificado no mês corrente.</div>"
+            )
+
+    if not partes:
+        return ""
+    return (
+        "<h3 class='af-h' style=\"font-size:14px;color:#0f172a;margin:22px 0 10px;padding-left:10px;"
+        f"border-left:3px solid {_PENSO_BLUE};\">📄 Contratos</h3>"
+        + "".join(partes)
     )
 
 
@@ -262,6 +352,44 @@ def _bloco_prioridades(alerts: list[dict[str, Any]]) -> str:
     )
 
 
+def _estilo_cabecalho() -> str:
+    """CSS embutido no ``<head>``: dark mode, responsivo e animação sutil.
+
+    Usa classes com ``!important`` para sobrepor os estilos inline em
+    clientes que suportam ``<style>``/media queries (Apple Mail, Gmail
+    app/web, Outlook.com/iOS). Clientes que ignoram ``<style>`` (ex.: Outlook
+    desktop clássico) continuam vendo o layout claro fixo via inline — nunca
+    quebram, apenas não ganham o tema escuro/empilhamento.
+    """
+    return f"""\
+    <meta name="color-scheme" content="light dark">
+    <meta name="supported-color-scheme" content="light dark">
+    <style>
+      body {{ margin:0; padding:0; }}
+      @keyframes afFade {{ from {{ opacity:0; transform:translateY(6px); }} to {{ opacity:1; transform:translateY(0); }} }}
+      .af-animate {{ animation:afFade .5s ease-out both; }}
+      .af-animate2 {{ animation:afFade .5s ease-out .12s both; }}
+      .af-animate3 {{ animation:afFade .5s ease-out .24s both; }}
+      @media screen and (max-width:600px) {{
+        .af-container {{ width:100% !important; max-width:100% !important; border-radius:0 !important; }}
+        .af-px {{ padding-left:18px !important; padding-right:18px !important; }}
+        .af-kpi-cell {{ display:block !important; width:100% !important; margin-bottom:8px !important; }}
+      }}
+      @media (prefers-color-scheme: dark) {{
+        .af-wrap {{ background:#0a0e18 !important; }}
+        .af-card {{ background:#141a2b !important; border-color:#242c42 !important; }}
+        .af-body h3 {{ color:#e8ecf5 !important; }}
+        .af-body p, .af-body div, .af-body li, .af-body span {{ color:#c3ccdf !important; }}
+        .af-kpi-cell {{ background:#1a2138 !important; border-color:#2a3350 !important; }}
+        .af-kpi-label {{ color:#8fa0c2 !important; }}
+        .af-altcard {{ background:#171e33 !important; }}
+        .af-footer {{ background:#0e1424 !important; border-color:#242c42 !important; }}
+        .af-muted {{ color:#7d8aa8 !important; }}
+        a.af-link {{ color:#9fb6ff !important; }}
+      }}
+    </style>"""
+
+
 def _montar_html(
     report_date: str,
     metrics: dict[str, Any],
@@ -269,7 +397,12 @@ def _montar_html(
     resumo_ia: str = "",
     highlights: dict[str, list[dict[str, Any]]] | None = None,
 ) -> str:
-    """Monta o corpo HTML completo do e-mail executivo (pt-BR)."""
+    """Monta o e-mail executivo completo (documento HTML, pt-BR).
+
+    Responsivo (empilha em telas pequenas) e com suporte a tema escuro dos
+    clientes de e-mail (``prefers-color-scheme``), preservando o layout claro
+    como fallback via estilos inline.
+    """
     altos = sum(1 for a in alerts if a.get("severity") == "high")
     resumo = (
         f"Foram gerados <strong>{len(alerts)} alerta(s)</strong>, "
@@ -281,7 +414,7 @@ def _montar_html(
     if corpo_ia:
         bloco_ia = (
             f"<div style='background:{_HOVER};border:1px solid {_DIVISORIA};border-left:4px solid {_PENSO_BLUE};"
-            "border-radius:10px;padding:14px 16px;margin:0 0 18px;'>"
+            "border-radius:10px;padding:14px 16px;margin:0 0 18px;' class='af-altcard'>"
             f"<div style='font-size:12px;color:{_PENSO_BLUE};font-weight:700;text-transform:uppercase;"
             "letter-spacing:.04em;margin-bottom:8px;'>🧠 Análise do dia</div>"
             f"{corpo_ia}"
@@ -292,7 +425,7 @@ def _montar_html(
     # este bloco por um <img> com o PNG/SVG oficial (base64 ou hospedado).
     # Por ora, usa apenas cores da marca (Penso Blue/Black) — sem inventar formas.
     cabecalho = f"""\
-      <td style="background:linear-gradient(120deg,{_BLACK_INTENSE},{_BLUE_TECH} 55%,{_PENSO_BLUE});padding:26px 28px;">
+      <td class="af-px af-animate" style="background:linear-gradient(120deg,{_BLACK_INTENSE},{_BLUE_TECH} 55%,{_PENSO_BLUE});padding:26px 28px;">
         <table role="presentation" cellspacing="0" cellpadding="0"><tr>
           <td style="width:34px;height:34px;background:#ffffff;border-radius:9px;text-align:center;
                      vertical-align:middle;font-weight:800;font-size:16px;color:{_PENSO_BLUE};">P</td>
@@ -304,33 +437,44 @@ def _montar_html(
               font-size:12px;font-weight:600;padding:5px 12px;border-radius:999px;">📅 {_escape(report_date)}</span>
       </td>"""
     rodape = f"""\
-      <td style="background:{_HOVER};padding:16px 28px;border-top:1px solid {_DIVISORIA};">
+      <td class="af-footer af-px" style="background:{_HOVER};padding:16px 28px;border-top:1px solid {_DIVISORIA};">
         <table role="presentation" cellspacing="0" cellpadding="0"><tr>
           <td style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;padding-right:8px;">Fonte de dados</td>
           <td><img src="{_LOGO_SALESFORCE_URL}" alt="Salesforce" style="height:14px;vertical-align:middle;" /></td>
         </tr></table>
-        <div style="font-size:12px;color:#94a3b8;margin-top:10px;">
+        <div class="af-muted" style="font-size:12px;color:#94a3b8;margin-top:10px;">
           Relatório gerado automaticamente pelo agente <strong>Analytical-Force</strong> (Penso).
           Os números são calculados em Python a partir do Salesforce; a interpretação
           é gerada por modelo local. O relatório completo está anexado/registrado no sistema.
         </div>
       </td>"""
     return f"""\
-<div style="background:#f1f5f9;padding:24px 0;font-family:Arial,Helvetica,sans-serif;">
-  <table role="presentation" width="640" align="center" cellspacing="0" cellpadding="0"
-         style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:12px;
-                overflow:hidden;border:1px solid {_DIVISORIA};">
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{_estilo_cabecalho()}
+</head>
+<body class="af-wrap" style="margin:0;padding:0;background:#f1f5f9;">
+<div class="af-wrap" style="background:#f1f5f9;padding:24px 0;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="640" align="center" cellspacing="0" cellpadding="0" class="af-container"
+         style="max-width:640px;margin:0 auto;">
+    <tr><td class="af-card" style="background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid {_DIVISORIA};">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
     <tr>
 {cabecalho}
     </tr>
     <tr>
-      <td style="padding:24px 28px;">
+      <td class="af-body af-px" style="padding:24px 28px;">
         <h3 style="font-size:14px;color:#0f172a;margin:0 0 10px;padding-left:10px;border-left:3px solid {_PENSO_BLUE};">Resumo executivo</h3>
         <p style="font-size:14px;color:#475569;margin:0 0 14px;line-height:1.55;">{resumo}</p>
         {bloco_ia}
 
         <h3 style="font-size:14px;color:#0f172a;margin:22px 0 10px;padding-left:10px;border-left:3px solid {_PENSO_BLUE};">Números-chave</h3>
         {_grade_kpis(metrics)}
+
+        {_bloco_contratos(metrics)}
 
         <h3 style="font-size:14px;color:#0f172a;margin:22px 0 10px;padding-left:10px;border-left:3px solid {_ERRO};">Principais alertas</h3>
         {_bloco_alertas(alerts)}
@@ -343,8 +487,12 @@ def _montar_html(
     <tr>
 {rodape}
     </tr>
+    </table>
+    </td></tr>
   </table>
-</div>"""
+</div>
+</body>
+</html>"""
 
 
 def _montar_texto(
@@ -408,11 +556,14 @@ def _extrair_resumo_ia(report_markdown: str) -> str:
 _ROTULO_DESTAQUE = {
     "leads_criados": "🆕 Leads criados",
     "leads_sem_tarefa": "⏳ Leads sem 1ª tarefa",
+    "oportunidades_criadas": "✨ Oportunidades criadas",
     "oportunidades_travadas": "🚧 Oportunidades travadas",
     "oportunidades_ganhas": "🏆 Oportunidades ganhas",
     "oportunidades_perdidas": "📉 Oportunidades perdidas",
     "cancelamentos": "❌ Cancelamentos",
+    "satisfacoes_do_dia": "😊 Satisfações do dia",
     "satisfacoes_piores": "😟 Piores satisfações",
+    "contratos_modificados": "📄 Contratos modificados",
 }
 
 

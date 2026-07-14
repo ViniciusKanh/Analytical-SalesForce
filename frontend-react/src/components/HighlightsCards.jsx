@@ -3,18 +3,26 @@ import SecaoHeader from "./SecaoHeader.jsx";
 const COR = {
   leads_criados: "#16a34a",
   leads_sem_tarefa: "#f59e0b",
+  oportunidades_criadas: "#0018FF",
   oportunidades_travadas: "#e11d48",
   oportunidades_ganhas: "#2563eb",
+  oportunidades_perdidas: "#e11d48",
   cancelamentos: "#be123c",
+  satisfacoes_do_dia: "#16C79A",
   satisfacoes_piores: "#0d9488",
+  contratos_modificados: "#0004DD",
 };
 const ROTULO = {
   leads_criados: "🆕 Leads criados",
   leads_sem_tarefa: "⏳ Leads sem 1ª tarefa",
+  oportunidades_criadas: "✨ Oportunidades criadas",
   oportunidades_travadas: "🚧 Oportunidades travadas",
   oportunidades_ganhas: "🏆 Oportunidades ganhas",
+  oportunidades_perdidas: "📉 Oportunidades perdidas",
   cancelamentos: "❌ Cancelamentos",
+  satisfacoes_do_dia: "😊 Satisfações do dia",
   satisfacoes_piores: "😟 Piores satisfações",
+  contratos_modificados: "📄 Contratos modificados",
 };
 
 // Renderiza os "Registros do dia" — links diretos para os registros no

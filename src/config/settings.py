@@ -555,10 +555,10 @@ def _carregar_fonte_cancelamento() -> dict[str, Any]:
 
 
 def _carregar_fonte_contrato() -> dict[str, Any]:
-    """Monta a configuração da fonte de Contratos (objeto + vínculos).
+    """Monta a configuração da fonte de Contratos (objeto + vínculos + reajuste).
 
-    Diferente de satisfação/cancelamento, esta fonte não filtra por data —
-    ela alimenta o módulo de CONSULTA (busca somente leitura de contratos,
+    Diferente de satisfação/cancelamento, os campos de objeto/vínculo desta
+    fonte alimentam o módulo de CONSULTA (busca somente leitura de contratos,
     itens de contrato e clientes). Os campos de vínculo (``account_field`` e
     ``item_parent_field``) são o NOME DE API do campo de lookup na org; como
     o projeto não pode inventar nomes de campo (regra 3), eles ficam vazios
@@ -567,6 +567,13 @@ def _carregar_fonte_contrato() -> dict[str, Any]:
 
     Padrões de objeto alinhados à org Penso (``Contrato_oPT__c`` e
     ``Item_do_Contrato__c``); ajuste via env se sua org usar outros nomes.
+
+    Já o bloco de REAJUSTE (``value_field``/``previous_value_field``/
+    ``readjustment_field``/``readjustment_date_field``) alimenta o pipeline
+    diário (relatório/e-mail): módulo configurável (regra 16/17) — vazio por
+    padrão, pois os nomes reais desses campos na org Penso não são conhecidos
+    e não podem ser adivinhados. Sem essa configuração, a análise de reajuste
+    permanece desativada (sem quebrar o restante do relatório).
     """
     return {
         "object": _get_str("SF_CONTRACT_OBJECT", "Contrato_oPT__c"),
@@ -574,9 +581,23 @@ def _carregar_fonte_contrato() -> dict[str, Any]:
         # Lookup do Contrato -> Account (nome de API do campo, ex.: "Conta__c").
         # Vazio = busca de contratos por cliente fica desativada.
         "account_field": _get_str("SF_CONTRACT_ACCOUNT_FIELD", ""),
+        # Campo de relacionamento para exibir o NOME da conta (ex.: "Conta__r.Name").
+        # Vazio = listagens de contrato não mostram o nome do cliente.
+        "account_name_field": _get_str("SF_CONTRACT_ACCOUNT_NAME_FIELD", ""),
         # Lookup do Item de Contrato -> Contrato (nome de API do campo).
         # Vazio = a tela de contrato não lista os itens vinculados.
         "item_parent_field": _get_str("SF_CONTRACT_ITEM_PARENT_FIELD", ""),
+        # ---- Módulo configurável de REAJUSTE (vazio = desativado) ----
+        # Campo com o valor ATUAL do contrato (ex.: "Valor_Atual__c").
+        "value_field": _get_str("SF_CONTRACT_VALUE_FIELD", ""),
+        # Campo com o valor ANTERIOR ao reajuste (ex.: "Valor_Anterior__c").
+        "previous_value_field": _get_str("SF_CONTRACT_PREVIOUS_VALUE_FIELD", ""),
+        # Campo com o valor de reajuste já informado no contrato (opcional).
+        # Se vazio, o reajuste é ESTIMADO como (valor atual - valor anterior).
+        "readjustment_field": _get_str("SF_CONTRACT_READJUSTMENT_FIELD", ""),
+        # Campo de data em que o reajuste foi aplicado (usado para filtrar
+        # "reajustes do mês"). Sem ele, o módulo de reajuste fica desativado.
+        "readjustment_date_field": _get_str("SF_CONTRACT_READJUSTMENT_DATE_FIELD", ""),
     }
 
 

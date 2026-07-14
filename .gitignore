@@ -11,10 +11,6 @@ __pycache__/
 .eggs/
 build/
 dist/
-# Excecao: o painel React precisa do build comitado para a Vercel servir
-# "/" (o deploy Python da Vercel nao roda "npm run build" automaticamente).
-!frontend-react/dist/
-!frontend-react/dist/**
 .venv/
 venv/
 env/

@@ -19,6 +19,7 @@ import pandas as pd
 
 from ..analytics import (
     calculate_cancellation_metrics,
+    calculate_contract_metrics,
     calculate_lead_metrics,
     calculate_opportunity_metrics,
     calculate_satisfaction_metrics,
@@ -289,6 +290,12 @@ class AnalyticalForceAgent:
             "cancelamentos": extrator.extrair_cancelamentos(
                 dia, self._settings.cancellation_source
             ),
+            "contratos_modificados": extrator.extrair_contratos_modificados(
+                dia, self._settings.contract_source
+            ),
+            "contratos_reajustados": extrator.extrair_contratos_reajustados_mes(
+                dia, self._settings.contract_source
+            ),
         }
 
     @staticmethod
@@ -364,6 +371,11 @@ class AnalyticalForceAgent:
             previous_metrics=anterior.get("cancellations"),
             seven_day_average=media7.get("cancellations"),
         )
+        contratos = calculate_contract_metrics(
+            df_modificados=dados.get("contratos_modificados"),
+            df_reajustados=dados.get("contratos_reajustados"),
+            source=self._settings.contract_source,
+        )
 
         return {
             "leads": leads,
@@ -371,6 +383,7 @@ class AnalyticalForceAgent:
             "tasks": tarefas,
             "satisfaction": satisfacao,
             "cancellations": cancelamentos,
+            "contracts": contratos,
         }
 
     def _montar_payload(
@@ -449,6 +462,13 @@ class AnalyticalForceAgent:
                     _reg(r.get("Id"), r.get("Name")) for _, r in sem.head(limite).iterrows()
                 ]
 
+        opp_criadas = dados.get("opp_criadas")
+        if opp_criadas is not None and not opp_criadas.empty and "Id" in opp_criadas.columns:
+            destaques["oportunidades_criadas"] = [
+                _reg(r.get("Id"), r.get("Name"), self._info_moeda(r.get("Amount")))
+                for _, r in opp_criadas.head(limite).iterrows()
+            ]
+
         opp_fech = dados.get("opp_fechadas")
         if opp_fech is not None and not opp_fech.empty and "IsWon" in opp_fech.columns:
             ganha_bool = opp_fech["IsWon"].fillna(False).astype(bool)
@@ -497,6 +517,18 @@ class AnalyticalForceAgent:
             and "SentimentScore" in sat.columns
         ):
             score = pd.to_numeric(sat["SentimentScore"], errors="coerce")
+            # Registro completo do dia (não só as piores) — usado no "registro
+            # do dia" do e-mail/painel, conforme pedido do usuário.
+            destaques["satisfacoes_do_dia"] = [
+                _reg(
+                    r.get("Id"),
+                    r.get("Conta_Nome__c") or r.get("Name"),
+                    (str(r.get("Sentimento__c")).strip() or None)
+                    if r.get("Sentimento__c") is not None
+                    else None,
+                )
+                for _, r in sat.head(limite).iterrows()
+            ]
             piores = sat[score <= 5].copy()
             if not piores.empty:
                 piores["_score"] = pd.to_numeric(piores["SentimentScore"], errors="coerce")
@@ -511,6 +543,19 @@ class AnalyticalForceAgent:
                     )
                     for _, r in piores.head(limite).iterrows()
                 ]
+
+        # Contratos modificados no dia — listagem "quem modificou o quê"
+        # (já vem pronta do motor de métricas de contrato).
+        contratos = (metricas.get("contracts", {}) or {}).get("modified_today") or []
+        if contratos:
+            destaques["contratos_modificados"] = [
+                _reg(
+                    c.get("id"),
+                    c.get("name"),
+                    (f"por {c['modified_by']}" if c.get("modified_by") else None),
+                )
+                for c in contratos[:limite]
+            ]
 
         return destaques
 

@@ -238,8 +238,54 @@ def _secao_cancelamentos(m: dict[str, Any]) -> list[str]:
     return linhas
 
 
+def _secao_contratos(m: dict[str, Any]) -> list[str]:
+    """Seção de Contratos: modificações do dia + reajuste do mês (se configurado)."""
+    linhas = ["## 7. Contratos", ""]
+    if not m or not m.get("configured"):
+        linhas.append("> ⚙️ Fonte de contratos ainda não configurada.")
+        return linhas
+    linhas.append(_linha("Contratos modificados hoje", _num(m.get("modified_today_count"))))
+    modificados = m.get("modified_today") or []
+    if modificados:
+        linhas.append("")
+        linhas.append("**Quem modificou o quê hoje:**")
+        for c in modificados[:10]:
+            quem = c.get("modified_by") or "responsável não identificado"
+            linhas.append(f"- {c.get('name', c.get('id', '—'))} — modificado por {quem}")
+    if not m.get("readjustment_configured"):
+        linhas.append("")
+        linhas.append(
+            "> ⚙️ Módulo de reajuste de contrato não configurado "
+            "(defina os campos de valor atual/anterior/data de reajuste)."
+        )
+        return linhas
+    linhas += [
+        "",
+        _linha("Contratos reajustados no mês", _num(m.get("readjustment_month_count"))),
+        _linha("Total de reajuste aplicado no mês", _moeda(m.get("readjustment_month_total"))),
+        _linha("Reajuste médio (%)", _pct(m.get("readjustment_month_avg_percent"))),
+    ]
+    inconsistentes = int(m.get("readjustment_inconsistent_count") or 0)
+    if inconsistentes:
+        linhas.append(
+            _linha("Contratos com possível inconsistência", _num(inconsistentes))
+        )
+    linhas.append("")
+    linhas.append(f"> ⚠️ {m.get('readjustment_disclaimer', '')}")
+    qtd = int(m.get("readjustment_month_count") or 0)
+    if qtd:
+        linhas.append(_insight(
+            f"{qtd} contrato(s) reajustado(s) no mês somam "
+            f"{_moeda(m.get('readjustment_month_total'))} — confirme os "
+            f"{inconsistentes} caso(s) sinalizado(s) com o time de contratos antes de reportar como definitivo."
+            if inconsistentes
+            else f"{qtd} contrato(s) reajustado(s) no mês somam {_moeda(m.get('readjustment_month_total'))}."
+        ))
+    return linhas
+
+
 def _secao_alertas(alertas: list[dict[str, Any]]) -> list[str]:
-    linhas = ["## 7. Principais Alertas", ""]
+    linhas = ["## 8. Principais Alertas", ""]
     if not alertas:
         linhas.append("Nenhum alerta gerado para o período. ✅")
         return linhas
@@ -261,7 +307,7 @@ def _secao_alertas(alertas: list[dict[str, Any]]) -> list[str]:
 
 def _secao_prioridades(alertas: list[dict[str, Any]]) -> list[str]:
     """Lista as ações recomendadas priorizadas pela severidade dos alertas."""
-    linhas = ["## 8. Prioridades para Hoje", ""]
+    linhas = ["## 9. Prioridades para Hoje", ""]
     acoes = [a for a in alertas if a.get("recommended_action")]
     if not acoes:
         linhas.append("Sem prioridades críticas. Manter rotina comercial padrão.")
@@ -282,9 +328,11 @@ def _pipeline_valor(opp: dict[str, Any]) -> Any:
 def _resumo_executivo_template(payload: dict[str, Any]) -> list[str]:
     """Resumo executivo em **storytelling**, por regras (sem IA).
 
-    Constrói uma narrativa executiva a partir das métricas calculadas,
-    adaptando o tom ao cenário do dia (tranquilo, atenção ou crítico) e
-    destacando os pontos que exigem ação. Nenhum número é inventado.
+    Constrói uma narrativa executiva — com começo, meio e fim — a partir das
+    métricas já calculadas, adaptando o tom ao cenário do dia (tranquilo,
+    atenção ou crítico) e usando os números como PROVA para convencer a
+    liderança a agir. Nenhum número é inventado: cada frase referencia um
+    valor presente no JSON de métricas.
     """
     metrics = payload.get("metrics", {})
     leads = metrics.get("leads", {}) or {}
@@ -292,61 +340,92 @@ def _resumo_executivo_template(payload: dict[str, Any]) -> list[str]:
     tasks = metrics.get("tasks", {}) or {}
     sat = metrics.get("satisfaction", {}) or {}
     canc = metrics.get("cancellations", {}) or {}
+    contratos = metrics.get("contracts", {}) or {}
     alertas = payload.get("alerts", []) or []
     altos = sum(1 for a in alertas if a.get("severity") == "high")
     data = payload.get("report_date", "o dia")
 
-    # Tom de abertura conforme o cenário.
+    # Abertura: o "gancho" da história, com o tom do dia como pano de fundo.
     if altos == 0:
         abertura = (
-            f"O dia **{data}** transcorreu sob controle: a operação comercial não "
-            "acumulou riscos altos e segue dentro do ritmo esperado."
+            f"O dia **{data}** conta uma história de controle: nenhum risco alto "
+            "surgiu na operação comercial, e os números abaixo mostram por quê."
         )
     elif altos <= 2:
         abertura = (
-            f"O dia **{data}** pede atenção pontual: surgiram **{altos} risco(s) alto(s)** "
-            "que, se tratados hoje, evitam impacto no funil."
+            f"O dia **{data}** tem um ponto de virada: **{altos} risco(s) alto(s)** "
+            "aparecem no meio de um funil que, no restante, segue saudável — e é "
+            "exatamente aí que a atenção de hoje faz diferença."
         )
     else:
         abertura = (
-            f"O dia **{data}** exige ação imediata: são **{altos} riscos altos** "
-            "concentrados que podem comprometer pipeline e receita se não forem endereçados."
+            f"O dia **{data}** é de sinal vermelho: **{altos} riscos altos** se "
+            "acumulam ao mesmo tempo, e os dados a seguir mostram onde o pipeline "
+            "e a receita podem ser afetados se ninguém agir agora."
         )
 
-    # Capítulo Leads.
+    # Capítulo Leads — entrada do funil.
     novos = _num(leads.get("new_leads"))
     conv = _pct(leads.get("conversion_rate"))
     sem_tarefa = int(leads.get("leads_without_first_task") or 0)
     cap_leads = (
-        f"Na entrada do funil, **{novos} novo(s) lead(s)** chegaram com conversão de "
-        f"**{conv}**{_variacao(leads, 'conversion_rate')}."
+        f"Tudo começa na entrada do funil: **{novos} novo(s) lead(s)** chegaram "
+        f"hoje, convertendo a **{conv}**{_variacao(leads, 'conversion_rate')}."
     )
     if sem_tarefa:
         cap_leads += (
-            f" Há **{sem_tarefa} lead(s) sem a primeira tarefa**, ou seja, contatos novos "
-            "ainda sem follow-up — o ponto mais barato de corrigir agora."
+            f" O detalhe que muda o resultado de amanhã: **{sem_tarefa} lead(s)** "
+            "ainda não têm a primeira tarefa registrada — é o ganho mais barato do "
+            "dia, e cada hora sem follow-up reduz a chance de conversão."
         )
 
-    # Capítulo Oportunidades.
+    # Capítulo Oportunidades — onde a receita se decide.
     ganhas = _num(opp.get("won_opportunities"))
     perdidas = _num(opp.get("lost_opportunities"))
+    criadas = int(opp.get("new_opportunities") or 0)
     pipeline = _moeda(_pipeline_valor(opp))
     paradas = int(opp.get("stalled_opportunities") or 0)
     alto_valor = int(opp.get("high_value_stalled_opportunities") or 0)
     cap_opp = (
-        f"No pipeline, o valor em aberto soma **{pipeline}**"
-        f"{_variacao(opp, 'open_pipeline_amount')}, com **{ganhas} ganha(s)** e "
-        f"**{perdidas} perdida(s)** fechando no dia."
+        f"No meio da história está o pipeline: **{_moeda(_pipeline_valor(opp))}** em "
+        f"aberto{_variacao(opp, 'open_pipeline_amount')}"
+        + (f", reforçado por **{criadas} oportunidade(s) nova(s)**" if criadas else "")
+        + f", com **{ganhas} ganha(s)** contra **{perdidas} perdida(s)** no fechamento de hoje."
     )
     if alto_valor:
         cap_opp += (
-            f" O sinal mais sensível: **{alto_valor} oportunidade(s) de alto valor parada(s)** — "
-            "negócios relevantes que estão esfriando e merecem contato prioritário."
+            f" A prova mais concreta do risco: **{alto_valor} oportunidade(s) de "
+            "alto valor parada(s)** — negócios relevantes esfriando sem contato, o "
+            "ponto que mais pesa contra o resultado do mês."
         )
     elif paradas:
         cap_opp += f" Ainda há **{paradas} oportunidade(s) parada(s)** aguardando reengajamento."
 
-    # Capítulo operação (tarefas) — sem alarmismo.
+    # Capítulo Contratos — reajuste e movimentação, com a ressalva de qualidade.
+    cap_contratos = ""
+    if contratos.get("configured"):
+        mod = int(contratos.get("modified_today_count") or 0)
+        if mod:
+            cap_contratos = f"Nos contratos, **{mod} registro(s)** foram modificados hoje"
+            responsaveis = {
+                c.get("modified_by")
+                for c in (contratos.get("modified_today") or [])
+                if c.get("modified_by")
+            }
+            if responsaveis:
+                cap_contratos += f", movimentados por {', '.join(sorted(responsaveis)[:3])}"
+            cap_contratos += "."
+        if contratos.get("readjustment_configured") and contratos.get("readjustment_month_count"):
+            qtd_reaj = _num(contratos.get("readjustment_month_count"))
+            total_reaj = _moeda(contratos.get("readjustment_month_total"))
+            cap_contratos += (
+                f" No acumulado do mês, **{qtd_reaj} contrato(s)** já foram "
+                f"reajustados, somando **{total_reaj}** — número estimado pela "
+                "diferença entre valor atual e anterior, que pode não ser 100% "
+                "exato caso haja erro de preenchimento no contrato."
+            )
+
+    # Capítulo operação (tarefas) — sem alarmismo, só o fato.
     venc = int(tasks.get("tasks_overdue") or 0)
     cap_ops = ""
     if venc:
@@ -355,12 +434,13 @@ def _resumo_executivo_template(payload: dict[str, Any]) -> list[str]:
             "deve recair sobre as ligadas a negócios de maior valor."
         )
 
-    # Capítulo cliente (satisfação/cancelamento), se configurado.
+    # Capítulo cliente (satisfação/cancelamento) — o desfecho do relacionamento.
     cap_cliente = ""
     if sat.get("configured") and sat.get("responses"):
         cap_cliente += (
-            f"Do lado do cliente, a satisfação média ficou em **{_num(sat.get('avg_score'))}** "
-            f"com **{_num(sat.get('negative_count'))} avaliação(ões) negativa(s)**."
+            f"Do lado do cliente, a satisfação do dia ficou em **{_num(sat.get('avg_score'))}** "
+            f"({_num(sat.get('responses'))} resposta(s)), com "
+            f"**{_num(sat.get('negative_count'))} avaliação(ões) negativa(s)**."
         )
     if canc.get("configured") and canc.get("cancellations_count"):
         cap_cliente += (
@@ -368,20 +448,24 @@ def _resumo_executivo_template(payload: dict[str, Any]) -> list[str]:
             f"**{_moeda(canc.get('mrr_impact'))}** em MRR — atenção à retenção."
         )
 
-    # Fecho com direção.
+    # Fecho: a moral da história, com direção clara de ação.
     if altos:
         titulos = "; ".join(a.get("title", "") for a in alertas if a.get("severity") == "high")
         fecho = (
-            f"**Direção para hoje:** priorizar {titulos.lower()}. As ações detalhadas estão "
-            "na seção de Prioridades."
+            f"**A conclusão é direta:** os dados apontam para {titulos.lower()} como "
+            "prioridade — as ações detalhadas estão na seção de Prioridades, e adiar "
+            "significa deixar esse risco crescer amanhã."
         )
     else:
         fecho = (
-            "**Direção para hoje:** manter a cadência, acompanhar as variações sinalizadas e "
-            "antecipar follow-ups dos negócios de maior valor."
+            "**A conclusão é direta:** os números sustentam manter a cadência atual, "
+            "acompanhar as variações sinalizadas e antecipar os follow-ups dos "
+            "negócios de maior valor antes que virem urgência."
         )
 
     paragrafos = [abertura, cap_leads, cap_opp]
+    if cap_contratos:
+        paragrafos.append(cap_contratos.strip())
     if cap_ops:
         paragrafos.append(cap_ops)
     if cap_cliente:
@@ -434,7 +518,7 @@ def _conclusao_template(payload: dict[str, Any]) -> list[str]:
     """Conclusão objetiva, sempre ligada a métricas/alertas."""
     alertas = payload.get("alerts", []) or []
     altos = [a for a in alertas if a.get("severity") == "high"]
-    linhas = ["## 9. Conclusão", ""]
+    linhas = ["## 10. Conclusão", ""]
     if altos:
         titulos = "; ".join(a.get("title", "") for a in altos[:3])
         linhas.append(
@@ -495,8 +579,10 @@ def renderizar_relatorio(
     linhas.append("")
     linhas += _secao_cancelamentos(metrics.get("cancellations", {}) or {})
     linhas.append("")
+    linhas += _secao_contratos(metrics.get("contracts", {}) or {})
+    linhas.append("")
 
-    # 7-9. Alertas, prioridades e conclusão.
+    # 8-10. Alertas, prioridades e conclusão.
     linhas += _secao_alertas(alertas)
     linhas.append("")
     linhas += _secao_prioridades(alertas)
